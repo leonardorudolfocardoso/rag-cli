@@ -1,0 +1,564 @@
+- OS is fundamentally a resource manager
+	- CPU time
+	- memory
+	- files
+	- devices
+	- networking
+	- process isolation
+- OS decides
+	- who runs
+	- when they run
+	- how memory is isolated
+	- how programs communicate safely
+	-
+- ## Phase 1 - [[Processes and Threads]]
+  collapsed:: true
+	- Goals
+	  collapsed:: true
+		- what a process actually is?
+			- a process is an isolated running program with its own virtual memory space and OS-managed resources
+			- contains
+				- memory
+				- threads
+				- open files
+				- sockets
+				- permissions
+				- execution state
+		- what a thread actually is?
+			- Thread is a single flow of execution inside a process
+				- threads inside the same process
+					- share memory
+					- share heap
+					- share files/sockets
+				- but each one has its own
+					- stack
+					- instruction pointer
+					- CPU register state
+		- why threads exist?
+			- threads exist to allow multiple flows of execution within the same process efficiently
+			- benefits
+				- responsiveness
+				- parallelism
+				- concurrency
+				- cheaper communication through shared memory
+			- example
+				- browser
+					- UI thread
+					- rendering thread
+					- networking thread
+		- what concurrency means?
+			- concurrency means multiple tasks can make progress during overlapping periods of time
+			- on one CPU core
+				- task A runs
+				- task A pauses
+				- task B runs
+				- task B pauses
+				- task A continues
+				- ...
+			- it does NOT necessarily mean simultaneous execution
+			- parallelism is diferent
+				- two tasks
+				- same time
+				- different cores
+		- why context switching is expensive?
+			- context switching is expensive because the CPU must stop useful work to save and restore execution state and often loses cache efficiency
+			- modern CPUs are incredibly fast because
+				- data is alredy close in cache
+				- cache is closer than RAM
+				- execution pipelines stay warm
+				- frequent switching disrupts both
+				- cache miss
+					- too many tasks -> too many context switching -> too much data to put in cache -> need to rely on RAM
+				-
+	- Process
+	  collapsed:: true
+		- is an isolated running program with its own memory space
+		- contains
+			- virtual memory
+			- file descriptors
+			- resources
+			- at least one thread
+		- examples
+			- browser
+			- VSCode
+			- database server
+		- isolated for safety
+	- Thread
+	  collapsed:: true
+		- is an execution path inside a process
+		- share
+			- memory
+			- heap
+			- global state
+			- file descriptors
+		- each one owns
+			- stack
+			- registers
+			- instruction pointer
+	- Processes vs Threads
+		- processes isolate
+		- threads cooperate
+		- processes are expensive to communicate with
+		- threads are dangerous because they share memory
+	- experiments
+	  collapsed:: true
+		- on unix
+			- ps aux
+			- htop
+		- spawn threads in rust
+			- ```rust
+			  use std::thread;
+			  fn main() {
+			    for i in 0..10 {
+			        thread::spawn(move || {
+			            println!("thread {}", i);
+			        });
+			    }
+			    std::thread::sleep(std::time::Duration::from_secs(2));
+			  }
+			  ```
+			- Why is ordering nondeterministic?
+				- Because they are not printed in the same thread, so the code inside spawn is run in parallel. thread::spawn negotiates with OS for a new thread? if OS delays a bit, a later iteration thread can start before the earlier one?
+				- Because the closure is concurrent inside the loop. The OS scheduler does not guarantee the thread spawn order, and one thread may pause while another continues.
+			- Why does main need to sleep?
+				- main needs to sleep a reasonable time in order to increase our chances of seeing the output printing, because the threads spawned are concurrent with our main code. Another approach would be to use `join()` on the `JoinHandle` returned by `spawn()` to guarantee that every spawned thread finishes before the program exits.
+			- What is the OS doing?
+				- OS is receiving the spawn request and scheduling the closure to be handled by cpu
+				- OS receives a request to create a new thread, allocates resources for the thread (stack, metadata, registers, etc.) and puts the thread into a scheduler queue; then, the OS scheduler decides when the thread runs, on which CPU core it runs and for how long it runs; when the thread gets CPU time, it executes the closure
+				- Schema
+					- OS
+						- allocates resources
+							- stack
+							- metadata
+							- registers
+							- others
+						- put into a scheduler queue
+					- OS scheduler decides
+						- when
+						- which CPU core
+						- how long
+					- when the thread gets CPU time, it executes the closure
+	- questions
+		- why threads are lighter than processes?
+			- because they share the same process memory and resources
+			- each process requires
+				- separate virtual memory space
+				- separate memory mappings
+				- separate OS resources
+			- each thread requires
+				- a stack
+				- CPU register state
+				- thread metadata
+			- threads are cheaper than processes
+		- why threads can race?
+			- multiple threads access shared mutable data concurrently
+			- the final result depends on timing/order, which is concurrent
+		- why processes are safer?
+			- processes are isolated
+				- safety
+				- fault containment
+				- security
+			- if one process crashes, others usually survive
+		- what does context switching mean?
+			- context switching means the common operations necessary for a core to switch between threads
+				- save current execution state
+				- restore another one
+			- state includes things like
+				- CPU registers
+				- instruction pointer
+				- stack pointer
+				- scheduling info
+		- why too many threads hurt performance?
+			- context switching overhead
+				- more threads -> more switch CPU time
+			- cache pollution
+				- CPUs rely heavily on caches
+				- switching threads may invalidate useful cached data
+			- scheduler overhead
+			- contention
+				- many threads competing for locks/resources
+			- threads help when work can happen concurrently
+			- but after some point, more threads create coordination cost instead of speed
+		-
+- ## Phase 2 - [[Scheduling]]
+  collapsed:: true
+	- goals
+		- how the OS decides who runs
+			- the scheduler chooses which runnable thread gets CPU time according to scheduling policies and priorities
+		- what concurrency actually means on CPUs
+			- concurrency means multiple tasks can make progress during overlapping periods of time, even if not simultaneously
+		- preemption
+			- The OS interrupts a running thread so the scheduler can run another one
+		- fairness
+			- a scheduling goal
+			- don't let one task starve others
+		- latency vs throughput
+			- one of preemption goals is to reduce latency
+				- high priority tasks requires low latency
+				- preemption helps that
+			- too much preemption requires too much context switching, reducing the useful work time and therefore decreasing throughput
+	- CPU can only execute a limited number of threads simultaneously
+	- The scheduler creates the illusion that everythin runs at once
+	- time slice
+		- determined by the scheduler
+		- small execution window
+	- schema
+		- thread A runs
+		- interrupted
+		- thread B runs
+		- interrupted
+		- thread C runs
+	- context switching
+		- OS interrupt thread
+		- OS saves
+			- registers
+			- stack pointer
+			- execution state
+		- OS restores another thread
+	- CPU-bound vs IO-bound
+		- CPU-bound
+			- mostly computation
+			- examples
+				- image processing
+				- compression
+				- physics simulation
+		- IO-bound
+			- mostly waiting
+			- examples
+				- HTTP requests
+				- database access
+				- filesystem access
+	- experiments
+		- spawn thousands of sleeping threads and observe
+			- memory usage
+			- scheduling overhead
+			- slowdown
+			- macOS protected the system denying too many threads creation with a kind "WouldBlock"
+		- create infinite loops in multiple threads
+			- why doesn't performance scale infinitely?
+				- performance does not scale infinitely because the hardware has a core limitation
+			- what happens when threads exceed core count?
+				- threads are run and interrupted in small time intervals, sharing the CPU time
+	- concurrency is not parallelism
+		- concurrency
+			- >multiple tasks making progress
+		- parallelism
+			- >multiple tasks executing simultaneously
+			-
+		-
+- ## Phase 3 - [[Memory]]
+  collapsed:: true
+	- Goals
+		- stack vs heap
+			- stack is faster
+			- heap is slower
+			- stack cleans automaticly
+			- heap needs manual, GC or ownership cleanup
+			- stack is per-thread
+			- heap is shared process memory
+			- stack is used for function-local/fixed-size data
+			- lheap is used for dynamic-size or flexible-lifetime data
+		- virtual memory
+			- what the programs access
+			- allow the OS to manage physical memory
+			- provides process isolation and protection
+			- the program sees virtual addresses
+			- the OS + MMU translate virtual addresses to physical memory
+		- ownership intuition
+			- ownership is how rust manages resources safely
+			- especially heap allocation and deallocation
+			- ownership determines who is responsible for cleanup
+			- prevents runtime errors with compile ones
+		- why memory isolation matters
+			- it protects programs from accessing or corrupting a memory that is not theirs
+			- prevents crashes/security problems from spreading across processes
+		- cache locality basics
+			- CPUs use small ultra-fast memories called caches
+				- L1 (very fast, very small)
+				- L2
+				- L3 (larger, slower)
+			- if data is already in cache, access may take a few CPU cycles
+			- if data must come from ram, it may take hundreds of cycles
+			- mental mode
+				- RAM = huge warehouse
+				- cache = objecs already on your desk
+			- high-performance software often focuses heavily on memory layout
+				- contiguous arrays
+				- batching work
+				- avoiding pointer chasing
+				- struct-of-arrays layouts
+				- minimizing allocations
+		- many programs are not CPU-bound anymore, but memory-bound
+		-
+	- memory is hierarchical
+		- CPU registers
+		- CPU cache
+		- RAM
+		- disk
+	- fast memory is small
+	- large memory is slow
+	- performance is deeply conected to memory access patterns
+	- stack vs heap
+		- stack
+			- fast
+			- automatic
+			- scoped
+			- contiguous
+			- used for
+				- local variables
+				- function calls
+		- heap
+			- flexible
+			- dynamic
+			- slower
+			- manually managed by runtime/allocator
+			- used for
+				- dynamic data
+				- shared data
+				- long-lived data
+	- Virtual memory
+		- one of the most important OS concepts
+		- each process believes
+			- > it owns its own memory space
+		- but OS maps virtual addresses to physical memory
+		- enables
+			- isolation
+			- security
+			- memory protection
+			- paging
+	- Rust helps here
+		- Rust ownership teaches
+			- who owns memory
+			- when memory dies
+			- aliasing problems
+			- mutation safety
+		- this maps to OS memory reasoning
+	- experiments
+		- stack overflow
+			- code a recursive function without stopping
+			- observe stack overflow
+			- why stack specifically?
+				- stack memory is responsible for variables and function calling
+				- as the functions calls itself infinitly, the program uses the whole stack memory
+			- why not heap overflow?
+				- functions calling is saved in the stack because it is faster than the heap
+		- heap allocation
+			- allocate huge vectors
+			- observe memory growth
+				- I have allocated a vec with 0 to i32::MAX and the memory usage increases significantly; for i64 it has not enough resources
+	- memory bugs are usually
+		- ownership bugs
+		- lifetime bugs
+		- synchronization bugs
+		- aliasing bugs
+		- visibility bugs
+		-
+		-
+- ## Phase 4 - [[Synchronization]]
+  collapsed:: true
+	- ### goals
+		- race conditions
+			- multiple concurrent operations access and modify shared state without proper synchronization and at least one operation is a write
+			- program's result depends on the timing/order of execution
+			- especially dangerous because
+				- can be rare
+				- may disappear during debugging
+				- often depend on exact timing
+				- can produce inconsistent bugs
+			- data race
+				- a specific low-level unsafe memory race
+				- Rust prevents these in safe code
+			- Rust's ownership and borrowing rules eliminate data races in safe code, but higher-level race conditions can still exist logically
+		- mutexes
+			- mutual exclusion primitive
+			- protects shared mutable state
+			- provides memory synchronization/visibility
+			- prevents of two threads mutating protected state simultaneously
+			- commonly used for complex state
+			- may introduce contention/blocking
+			- relatively expensive compared to atomics
+		- deadlocks
+			- possible mutex tradeoff
+			- occur when two threads relies wait indefinitely for each other's locks
+			- commonly caused by inconsistent lock ordering
+			- classic scenario
+				- Thread A: lock X -> wait Y
+				- Thread B: lock Y -> wait X
+				- both wait forever
+		- atomics
+			- synchronization primitives for primitive/shared values
+			- perform indivisible CPU operations
+			- often used for counters, flags, pointers, state markers
+			- usually cheaper than mutexes
+			- avoid blocking/locking
+			- support operations like
+				- atomic load
+				- atomic store
+				- compar-and-swap (CAS)
+				- fetch_add
+			- read-modify-write happens as one indivisible operation
+		- memory visibility
+			- one thread may update data
+			- another thread may not immediately see that update
+			- modern CPUs aggressively optmize memory access using
+				- CPU caches
+				- store buffers
+				- instruction reordering
+				- compiler optimizations
+			- threads do NOT always observe memory changes
+				- instantly
+				- in the same order
+			- this can contribute to race conditions
+			- this can cause synchronization bugs
+			- synchronization primitives establish visibility guarantees
+				- mutexes
+				- atomics with memory ordering
+				- channels
+				- thread joins
+			- problems are deeply related to
+				- CPU reordering
+				- compiler reordering
+				- memory ordering semantics
+			- this is why Rust atomics have
+				- Relaxed
+				- Acquire
+				- Release
+				- AcqRel
+				- SeqCst
+	- this is where concurrency becomes difficult
+	- the problem
+		- threads share memory
+		- shared mutable state creates coordination problems
+	- race condition
+		- two threads access shared state concurrently and ordering matters
+		- example
+			- ```text
+			  counter = 0
+			  
+			  Thread A reads 0
+			  Thread B reads 0
+			  Thread A writes 1
+			  Thread B writes 1
+			  ```
+			- expected 2, but it is 1
+	- mutex
+		- a mutex guarantees
+		- > only one thread accesses critical code at a time
+		- Rust example
+			- ```rust
+			  use std::sync::{Arc, Mutex};
+			  use std::thread;
+			  
+			  fn main() {
+			    let counter = Arc::new(Mutex::new(0));
+			    
+			    let mut handles = vec![];
+			    
+			    for _ in 0..10 {
+			      let counter = Arc::clone(&counter);
+			      
+			      handles.push(thread::spawn(move || {
+			        let mut num = counter.lock().unwrap();
+			        *num += 1;
+			      }));
+			    }
+			    
+			    for h in handles {
+			      h.join().unwrap();
+			    }
+			    
+			    println!("{}", *counter.lock().unwrap());
+			  }
+			  ```
+	- deadlock
+		- thread A waits for B
+		- thread B waits for A
+		- nobody progresses
+	- synchronization is not mainly about speed
+	- it is about
+		- correctness
+		- ordering
+		- visibility
+		- coordination
+	- the hardest concurrency bugs are often
+		- timing-dependent
+		- nondeterministic
+		- impossible to reproduce easily
+	- this is why systems programming is difficult
+- ## Phase 5 - [[Async Fundamentals]]
+  collapsed:: true
+	- goals
+		- why async exists?
+		- what are futures?
+		- what are executors?
+		- what is cooperative scheduling?
+		- what are event loops
+		- what the differences between async and threads?
+	- the problem
+		- threads are expensive
+		- especially for
+			- network servers
+			- high concurrency systems
+			- millions of waiting operations
+		- most backend system are mostly
+			- > waiting for
+				- sockets
+				- databases
+				- APIs
+				- disks
+		- using one thread per request scales poorly
+	- async mental mode
+		- > async is cooperative multitasking
+		- instead of the OS interrupting threads
+		- tasks voluntarily yield
+	- thread scheduling
+		- controlled by operating system
+		- usually preemptive
+	- async scheduling
+		- controlled by runtime/executor
+		- usually cooperative
+		- [[Tokio]] is essentially
+			- > a user-space scheduler
+	- futures
+		- > represents work that may complete later
+		- > NOT work currently executing
+	- async/await
+		- when async code awaits:
+		- ```rust
+		  let data = fetch().await;
+		  ```
+		- it means
+			- >pause this task until ready, then resume later
+		- the thread can now execute other tasks
+		- this is why async is efficient for IO-bound systems
+	- experiments
+		- blocking vs async
+			- compare
+				- thread-per-request
+				- async requests
+			- observe
+				- memory
+				- throughput
+				- latency
+	- the most important async insight
+		- it does NOT make code faster automatically
+		- it improves
+			- scalability
+			- resource efficiency
+			- concurrency handling
+			- especially for IO-heavy systems
+- ## Resume
+	- processes
+		- isolation boundaries
+	- threads
+		- OS-managed execution units
+	- scheduling
+		- CPU time allocation
+	- memory
+		- resource organization and isolation
+	- synchronization
+		- coordination of shared data
+	- async
+		- efficient coordination of waiting taks
+	- modern backend systems combine all of those
+	-

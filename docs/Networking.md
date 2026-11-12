@@ -1,0 +1,758 @@
+## Phase 1 - Networking Mental Model
+collapsed:: true
+	- Goal
+		- understand what networking fundamentally is
+			- Networking is fundamentally about communication between processes, not just between computers
+			- computers are only the infrastructure carrying messages between programs
+	- Network
+		- group of machines exchanging data
+		- programs exchanging bytes through standardized protocols
+	- Client
+		- initiates communication
+		- examples
+			- browser
+			- mobile app
+			- CLI tool
+	- Server
+		- waits for requests and responds
+		- examples
+			- web server
+			- database server
+	- IP Address
+		- identifies a machine on a network
+		- examples
+			- 127.0.0.1
+			- 192.168.0.10
+			- 8.8.8.8
+	- Port
+		- identifies a process/service on a machine
+		- examples
+			- 80 -> HTTP
+			- 443 -> HTTPS
+			- 22 -> SSH
+			- 5432 -> PostgreSQL
+	- Protocol
+		- a tandardized communication rule
+		- examples
+			- TCP
+			- HTTP
+			- DNS
+	- Packet
+		- small chunk of data sent through the network
+	- Experiments
+		- run
+			- ifconfig
+			- ping google.com
+				- ICMP
+					- network diagnostics/control
+			- ss -tan
+		- what is my local IP?
+			- I ran
+			  > ipconfig getifaddr en0
+			- 192.168.15.128
+		- what is localhost?
+			- this computer itself
+			- special hostname that resolves to
+				- ipv4 127.0.0.1
+				- ipv6 ::1
+		- what ports are open?
+			- > lsof -i -P
+		- what is your router doing?
+			- it is a networked computer
+			- mental mode
+				- my home = small private city
+				- router = highway entrance + traffic control
+				- internet outside world
+			- routing packets
+				- decides where the packet should go next
+			- NAT
+				- network address translation
+				- prevented IPv4 exhaustion
+				- rewrites packets so all devices share one public IP
+			- DHCP server
+				- when joining a wi-fi
+				  > can someone give me an IP?
+			- basic firewall/security
+				- block unsolicited inbound traffic
+				- isolate LAN from internet
+			- Wi-Fi access point
+			- switching local traffic
+				- laptop -> TV
+				- don't reach the internet
+		- Rust
+			- Rust TCP listener
+			- Connection Logger
+		- Why do ports exist?
+			- to reference where to connect inside a machine
+			- to identify which application or service inside a machine should receive the network data
+		- What is localhost?
+			- is the machine itself address alias
+			- localhost is a special hostname that refers to the same machine you are currently using
+		- What is the differente between an IP and a port?
+			- an IP identifies a machine on a network
+			- a port identifies a specific network service/application on that machine
+		- Why are protocols necessary?
+			- in order to estabilish client-server communication
+			- they define the rules and format that machines use to communicate correctly
+			- examples
+				- TCP
+				- HTTP
+				- DNS
+- ## Phase 2 - TCP/IP Foundations
+  collapsed:: true
+	- Goal
+		- Understand how transport protocols work
+	- IP
+		- Definition
+			- defined how packets are addressed and routed across interconnected networks
+			- TTL
+				- prevents eternal loops
+				- is decremented by each router
+			- can be public or private
+				- the internet cannot reach to devices directly
+				- it reaches the router
+				- the router performs Network Address Translation (NAT)
+		- addressing
+			- identifying the source and destination machines
+		- routing
+			- allowing routers to forward packets toward the destination
+		- example
+			- Source IP:      192.168.15.128
+			  Destination IP: 142.250.190.78
+			  TTL:            64
+			  ...
+			  Payload:        TCP segment
+		- the internet is really a network of networks
+			- laptop
+			  home network
+			  ISP network
+			  Regional network
+			  Backbone
+			  Google's network
+			  Google server
+		- it does not care what's inside
+		- it just carries it to the right machine
+			-
+	- TCP
+	  id:: 6a173387-f47f-4685-9f29-f7aee0d4f0fb
+		- Definition
+		  id:: 6a49817c-06ca-4822-801a-ba9b5f1281c8
+			- Transmission Control Protocol
+			- Reliable stream-oriented transport protocol
+			- provides
+				- ordering
+				- retransmission
+				- reliability
+				- flow control
+			- does not guarantee message boundaries
+		- is stream-oriented
+		- does not preserve application-level message boundaries
+			- this
+			  ```rust
+			  stream.write_all(b"hello");
+			  stream.write_all(b"world");
+			  ```
+			  does not guarantee message boundaries
+		-
+		- lifecycle
+			- LISTEN
+			- ESTABLISHED
+			- TIME_WAIT
+			- CLOSE_WAIT
+	- UDP
+		- User Datagram Protocol
+		- Unreliable message-oriented protocol
+		- is
+			- connectionless
+			- unreliable
+				- packets may be lost
+			- unordered
+				- packets may arrive out of order
+			- very fast and lightweight
+		- provides
+			- low overhead
+			- low latency
+			- no retransmission
+		- typical cases
+			- online games
+			- video/audio calls
+			- live streaming
+			- DNS queries
+	- TCP vs UDP
+		- TCP sends a byte stream
+			- a pipe with flowing water
+		- UDP sends messages/datagrams
+			- mailing envelopes
+	- RTT
+		- Round Trip Time
+		- Time for a packet to
+			- go to the server
+			- come back
+		- Latency heavily affects throughput
+	- experiments
+		- ping google.com
+		- traceroute google.com
+			- use ttl to limit the packet trip
+			- when 0 is reached, the router return the details
+		- TCP Echo server
+			- TCP server
+			- receives bytes
+			- echoes bytes back
+		- UDP experiment
+			- build
+				- udp sender
+				- udp receiver
+			- observe
+				- no connection setup
+				- no reliability guarantees
+		- Why is TCP reliable?
+			- TCP is reliable because it
+				- tracks transmitted data
+				- aknowledges received data
+				- retransmits lost data
+				- preserves ordering
+		- Why is UDP faster?
+			- UDP is faster because it does not have the reliability and ordering overhead
+			- there is no connection estabilishment
+			- there are no acknowledgements
+			- there is no retransmission
+			- there is less protocol overhead
+			- then
+				- packets may be lost
+				- packets may arrive out of order
+		- Why does latency matter?
+			- latency matter depending on communication responsiviness, for gaming for example
+			- communication takes time and high latency slows interactions between systems
+			- event extremely fast servers feel slow if latency is high
+			- for example
+				- 5 ms feels instant
+				- 200 ms feels sluggish
+				- 1000 ms feels broken
+			-
+		- What does stream-oriented mean?
+			- it means that the bytes are transmitted continuosly
+			- the protocol exposes a continuous flow of bytes without preserving message boundaries
+				- this is why protocols built on TCP often add framing
+					- Content-Length
+					- delimiters
+					- packet sizes
+					- chunk headers
+				- http does this too
+			-
+- ## Phase 3 - Sockets & Async Networking
+  collapsed:: true
+	- Goal
+		- understand how operating systems expose networking
+	- socket
+		- is the OS abstraction for network communication
+	- server lifecycle
+		- socket()
+		  -> bind()
+		  -> listen()
+		  -> accept()
+		  -> read/write()
+		  -> close()
+	- client lifecycle
+		- socket()
+		  -> connect()
+		  -> read/write()
+		  -> close()
+	- blocking IO
+		- thread waits until operation completes
+	- non-blocking IO
+		- thread does NOT wait
+		- the OS notifies readiness later
+	- event loops
+		- modern async runtimes use
+			- epoll (Linux)
+			- kqueue (BSD/macOS)
+			- IOCP (Windows)
+	- async runtimes exist because
+		- threads are expensive
+		- blocking wastes resources
+		- sockets spend lots of time waiting
+	- practical observation
+		- CPU usage
+		- thread count
+		- open sockets
+	- experiments
+		- thread-per-connection server
+			- observe
+				- simplicity
+				- scalability limits
+		- non-blocking TCP server
+			- use set_nonblocking(true)
+			- observe
+				- WouldBlock errors
+				- polling behaviour
+		- tokio TCP server
+			- tasks
+				- tokio scheduled unit of work
+				- wraps a Future
+				- many tasks can run on a few OS threads
+			- .await
+				- may pause the task
+					- the task may continue immediately
+				- gives the scheduler control back when the Future cannot make progress
+				- the thread is free to run another task
+			- cooperative scheduling
+				- the tasks cooperate by yielding control
+				- yield points usually happen at .await
+				- unlike preemptive OS threads, Tokio does NOT forcibly interrupt arbitrary code
+		- async chat server
+			- requirements
+				- multiple clients
+				- async IO
+				- broadcasting
+	- checkpoint questions
+		- why do async runtimes exist?
+			- async runtimes exists in order to avoid CPU waste time in IO operations waiting
+			- async runtimes exist to manage many concurrent tasks efficiently by not blocking OS threads while waiting for slow operations like I/O
+			- they schedule tasks, provide timer and interact with the OS event system to wake tasks when progress is possible
+			- runtime does more than avoid waste
+				- schedules tasks
+				- owns the event loop/reactor
+				- handles timers
+				- wakes futures
+		- what is .await waiting for?
+			- it is waiting for a Future become ready to continue; while waiting, it cooperates with the async runtime returning the thread control back; usually, it waits for IO operations
+			- .await polls a Future. If the Future cannot make progress, the current task yields control back to the runtime. The runtime can run other tasks and will poll it again when it is woken
+		- why are sockets usually non-blocking?
+			- async runtimes use non-blocking sockets because a blocking socket would stop the entire OS thread
+			- non-blocking socket is a socket where operations like read and write never put the thread to sleep; if the operation cannot make progress immediately, it returns error like WouldBlock instead
+			- non-blocking sockets allow the runtime to try an operation, continue with other tasks if it is not ready, and retry when the OS reports readiness
+			- async runtimes use this togheter with OS event notifications to know when to retry the operation
+		- why are event loops efficient?
+			- event loops are efficient because they ask the OS to notify them when resources become ready, instead of constantly checking them
+			- this allows one thread to manage thousands of I/O operations
+			- polling without OS help would waste CPU time
+			-
+		-
+		-
+		-
+- ## Phase 4 - HTTP Deep Dive
+  collapsed:: true
+	- goal
+		- understand the web deeply
+	- HTTP
+		- application layer protocol built on TCP
+	- HTTP Request
+		- GET /users HTTP/1.1
+		      Host: example.com
+		      User-Agent: curl/8.0
+	- HTTP Response
+		- HTTP/1.1 200 OK
+		    Content-Type: application/json
+		  
+		  {"ok": true}
+	- HTTP Methods
+		- GET
+		- POST
+		- PUT
+		- PATCH
+		- DELETE
+	- Headers
+		- Metadata attached to requests/responses
+		- examples
+			- Content-Type
+			- Authorization
+			- User-Agent
+	- Keep-Alive
+		- reuses TCP connections
+		- avoids reconnect overhead
+	- Idempotency
+		- safe retry behaviour
+		- examples
+			- GET -> usually safe
+			- POST -> usually unsafe
+	- HTTP Versions
+		- HTTP/1.1
+			- text-based
+			- sequential requests
+		- HTTP/2
+			- multiplexing
+			- header compression
+		- HTTP/3
+			- built on QUIC/UDP
+	- Practical observation
+		- run
+		  > curl -v https://google.com
+	- experiments
+		- Raw HTTP client
+			- using only TCP
+			- connect
+			- manually send HTTP request
+			- parse response
+		- Minimal HTTP server
+			- routing
+			- status codes
+			- headers
+			- without framework
+		- Keep-Alive support
+			- multiple requests per connection
+		- Thread pool HTTP server
+			- worker pool
+			- request queue
+		- Async HTTP server
+			- rebuild using
+				- tokio
+				- hyper or axum
+					- used hyper
+	- Checkpoint questions
+		- why does keep-alive improve performance?
+			- because the connection is already estabilished
+			- new requests are only send through the stream
+			- multiple HTTP requests reuse the same TCP connection
+			- avoids the overhead of creating a new TCP connection (TCP handshake) and, with HTTPS, repeating expensive TLS handshakes
+		- why is HTTP stateless?
+			- it does not remember previous requests
+			- each request contains all the information needed to understand it
+		- What changed in HTTP/2?
+			- it uses binary format
+			- usually one connection
+			- multiplexed streams for parallel requests
+			- HPACK compression for headers
+			- priorities
+			- server push (but deprecated)
+			- HTTP/2 parses a byte stream into frames, then reconstructs many concurrent streams
+		- Why does HTTP need TCP?
+			- HTTP need TCP because it does not state rules for connection, only for the structure and meaning of messages
+			- TCP provides reliable ordered byte transport
+			- HTTP/3 runs over QUIC instead of TCP, which uses UDP underneath and implements reliability itself
+- ## Phase 5 - DNS
+  collapsed:: true
+	- goal
+		- understand how names become IP addresses
+	- DNS
+		- Domain Name System
+		- converts domain names into IP addresses
+	- DNS Resolution
+		- example.com
+		  -> DNS resolver
+		  -> authoritative DNS server
+		  -> IP address
+	- DNS Records
+		- entries stored in DNS servers that describe information about a domain
+			- A
+				- IPv4 address
+			- AAAA
+				- IPv6 address
+			- CNAME
+				- canonical name
+				- alias to another domain
+				- example
+					- www.example.com
+					- CNAME example.com
+			- MX
+				- Maiol Exchange
+				- mail server
+				- without it, other servers don't know where to deliver email
+			- TXT
+				- Arbitrary metadata
+				- common uses
+					- prove you own a domain
+					- email security
+					- configuration
+			- NS
+				- name server
+				- defines who is responsible for DNS information
+				- ask this server if you need information about a domain
+			- SOA
+				- start of authority
+				- metadata about a DNS zone
+				- contains
+					- primary dns server
+					- administrator contact
+					- update timing
+					- serial version
+		- cheatset
+			- A / AAAA -> where is my server?
+			- CNAME -> point this name somewhere else
+			- MX -> where does email go?
+			- TXT -> prove/configure things
+			- NS -> who controls this DNS?
+		- very relevant when deploying apps, configuring CDNs, reverse proxies, and load balancers
+	- practical observation
+		- run
+			- dig google.com
+			- dig google.com MX
+			- dig google.com TXT
+		- observe TTL
+		- record types
+		- CNAME chains
+	- exercises
+		- DNS resolver
+			- resolve
+				- domains
+				- IPs
+			- suggested
+				- ToSocketAddrs
+	- checkpoint questions
+		- why is DNS heavily cached?
+			- there are too many devices requesting for DNS
+			- domains do not change frequently
+			- cache reduce the servers load, decreases traffic across the DNS hierarchy and improve query latency for clients
+		- what is an authoritative server?
+			- an authoritative DNS server is the server responsible for a DNS zone
+			- it stores the official DNS records for that domain and provides authoritative answers
+		- what is a recursive resolver?
+			- a recursive resolver is a DNS server that receives queries from clients and performs the DNS resolution process on their behalf
+			- it queries root, TLD, and authoritative servers if needed, caches the result, and returns the final answer
+		- why does TTL exist?
+			- TTL defines how long a DNS response can be cached
+			- it allows caching to reduce DNS traffic and latency while ensuring records eventually expire when domains change
+		- why does DNS use UDP by default and when does it use TCP?
+			- DNS uses UDP by default because most queries are small and UDP avoids connection overhead, reducing latency and server resource usage
+			- if a response is too large, the server marks it as truncated using the TC flag and the client retries using TCP
+			- TCP is also used for operations like zone transfers and modern encrypted DNS transports
+			- DNS over UDP has limit of 512 bytes
+	-
+- ## Phase 6 - TLS basics
+  collapsed:: true
+	- Goal
+		- Understand secure communication
+	- HTTPS
+		- HTTP + TLS
+	- TLS
+		- Transport Layer Security
+		- provides
+			- encryption
+			- integrity
+			- authentication
+	- Certificates
+		- prove server identity
+	- Certificate authorities
+		- trusted organizations that sign certificates
+		- examples
+			- Let's Encrypt
+			- DigiCert
+	- Symmetrict Encryption
+		- Fast shared-key encryption
+		- Used after handshake
+	- Asymmetrict Encryption
+		- public/private key cryptography
+		- used during handshake
+	- Symplified TLS handshake
+		- Client
+		  -> supported algorithms
+		- Server
+		  -> certificate
+		- Client
+		  -> verify certificate
+		- Both
+		  -> derive shared session key
+	- approximately
+		- Server sends certificate
+		  logseq.order-list-type:: number
+		- Browser verfifies signature
+		  logseq.order-list-type:: number
+		- Key exchange creates shared secret
+		  logseq.order-list-type:: number
+		- AES/ChaCha encrypt everything
+		  logseq.order-list-type:: number
+		- hashes verify integrity
+		  logseq.order-list-type:: number
+	- Cryptography stack
+		- TLS
+		                    |
+		      +-------------+-------------+
+		      |             |             |
+		  certificates   key exchange   encryption
+		      |             |             |
+		   signatures   Diffie-Hellman  AES
+		      |
+		   hashing
+	- Practical observation
+		- openssl s_client --connect google.com:443
+		- inspect
+			- certificate chain
+			- TLS version
+			- cipher suites
+	- ALPN
+		- Application layer protocol negotiation
+		- http/1.1 -> HTTP/1.1
+		- h2 -> HTTP/2
+		- h3 -> HTTP/3 (different because it uses QUIC, not TCP/TLS in the same way)
+	- Rust exercises
+		- HTTPS Client
+		  logseq.order-list-type:: number
+			- use
+				- reqwest
+				- rustls
+			- tracing observation
+				- TCP connection opened
+				- TLS handshake starts
+					- client says
+						- Hi <site>!
+						  I support:
+							- TLS 1.3
+							- these cipher suites
+							- these protocols:
+								- h2
+								- http/1.1
+						- this protocol list is the ALPN extension
+					- server replies
+						- Cool. Let's use:
+							- TLS 1.3
+							- AES-256-GCM
+							- h2
+				- After TLS finishes
+					- encrypted tunnel is estabilished
+					- inside it: HTTP/2 frames
+				- Stack become
+					- HTTP/2
+					- TLS 1.3
+					- TCP
+					- IP
+					- Ethernet/WiFi
+				- Timeline
+					- DNS
+					   |
+					   v
+					  TCP connect
+					   |
+					   v
+					  TLS ClientHello
+					      + ALPN: ["h2", "http/1.1"]
+					   |
+					   v
+					  TLS ServerHello
+					      + ALPN: "h2"
+					   |
+					   v
+					  Certificate verification
+					   |
+					   v
+					  TLS ready
+					   |
+					   v
+					  HTTP/2 handshake
+					   |
+					   v
+					  GET /
+					   |
+					   v
+					  Response 200
+		- Self-signed certificate
+		  logseq.order-list-type:: number
+	- checkpoint questions
+		- why does HTTPS exist?
+			- HTTPS exists to protect HTTP communaction using TLS
+			- it provides
+				- confidentiality (encryption)
+				- integrity (data was not modified)
+				- authentication (you are talking to the real server)
+			- to protect the HTTP traffic by encrypting it
+		- what does a certificate prove?
+			- a certificate proves that a public key belongs to a specific identity (domain) because a trusted Certificate Authority signed that association
+		- why are public/private keys useful?
+			- public/private keys allow two parties to communicate securely without sharing a secret beforehand
+			- they enable
+				- authentication
+				- signatures
+				- secure key exchange
+		- Why does TLS use symmetric encryption afterward?
+			- TLS use symmetric encryption afterward because asymmetrict cryptography is expensive. After authentication and key exchange establish a shared secret, both sides switch to fast symmetric encryption for the actual data transfer
+- ## Phase 7 - Proxies & Load Balancing
+	- Goal
+		- Understand production networking infrastructure
+	- Reverse Proxy
+		- Client
+		  -> reverse proxy
+		  -> backend server
+		- examples
+			- Nginx
+			- HAProxy
+			- Envoy
+	- Forward Proxy
+		- Client
+		  -> Proxy
+		  -> Internet
+	- Load Balancer
+		- Distributes traffic across servers
+	- Common Algorithms
+		- round robin
+		- least connections
+		- IP hash
+	- Health Checks
+		- Verify backend availability
+	- Connection pooling
+		- Reuse expensive connections
+	- CDN
+		- Content Delivery Network
+		- Caches content geographically closer to users
+		- examples
+			- cloudflare
+			- fastly
+	- Practical Observation
+		- observe
+			- reverse proxy configs
+			- request forwarding
+			- headers added by proxies
+	- Checkpoint Questions
+		- Why use reverse proxies?
+			- reverse proxies are useful for
+				- hide backend infrastructure
+					- clients don't know the real server addresses
+				- security
+					- rate limiting
+					- DDoS mitigation
+					- WAF
+						- Web Application Firewall
+					- authentication and authorization
+					- TLS termination
+				- load balancing
+					- distribute load to multiple servers
+					- Round-robin, for example
+				- caching
+					- cache responses and reduce backend load
+				- centralized concerns
+					- logging
+					- compression
+					- header manipulation
+					- request routing
+				- Reverse proxies sit between clients and backend servers, providing security, TLS termination, request routing, caching, and load balancing while hiding internal infrastructure
+				- in short
+					- adds security, routing, TLS termination, caching, and load balancing in front of backend servers
+					-
+		- Why use load balancers?
+			- Load balancers help to distribute load to multiple servers
+			- It helps increasing scalability and reduce latency
+			- High availability
+				- if one server fails, traffic goes to healthy servers
+			- Horizontal scaling
+				- add more servers without changing clients
+			- Better resource utilization
+				- avoid one server becoming overloaded
+			- Rolling deployments
+				- remove servers from rotation during updates
+			- Load balancers distribute traffic accross multiple servers to improve scalability, availability, fault tolerance, and resource utilization
+			- in short
+				- distributes traffic across servers for scalability and high availability
+		- Why are CDNs useful?
+			- To reduce latency by serving the content closer to the client
+			- it reduces origin server load
+			- improve availability
+			- absorb traffic spikes and DDoS attacks
+			- cache static content globally
+			- CDNs cache content at edge locations close to users, reducing latency, lowering origin load, and improving availability and resilience
+			- in short
+				- caches content close to users to reduce latency and origin load
+		- Why does connection pooling improve performance?
+			- Because it avoids TLS handshakes overheads once the connection is estabilished
+			- the connection already has an estabilished TLS session and negotiated encryption parameters, so requests can be sent immediately without repeating the handshake
+			- Connection pooling avoids repeatedly paying for
+				- TCP handshake
+				- TLS handshake
+				- kernel socket allocation
+				- DNS lookups (sometimes)
+				- congestion window warm-up
+			- it
+				- reduces CPU usage
+				- reduces memory allocations
+				- lowers latency
+				- allows HTTP keep-alive and HTTP/2 multiplexing
+			- Connection pooling reuses existing TCP/TLS connections, avoiding repeated handshakes and socket setup costs, which reduces latency and CPU usage and increases throughput
+			- in short
+				- Reuses TCP/TLS connections to avoid expensive connection setup costs
+			-
