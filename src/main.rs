@@ -17,6 +17,26 @@ fn chunks(doc: &str, size: usize) -> impl Iterator<Item = &str> {
     })
 }
 
+const QUESTIONS: [(&str, &str); 5] = [
+    (
+        "Why should vectors be normalised when they're stored?",
+        "3Nd → Nd per search, paid once at ingest",
+    ),
+    (
+        "What goes wrong when data arrives faster than the consumer can process it, with nothing slowing the sender?",
+        "memory, latency, GC, degradation",
+    ),
+    (
+        "Where does caipora sit in the MCP picture?",
+        "between host and tool servers",
+    ),
+    (
+        "My RAG gave a wrong answer even though the right chunk was retrieved. What should I fix?",
+        "the prompt (model problem)",
+    ),
+    ("What is PostgreSQL's default port?", "I don't know"),
+];
+
 fn main() {
     println!("Hello, world!");
 }
