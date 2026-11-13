@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -37,6 +39,7 @@ pub async fn embed(
 ) -> Result<Embedding, EmbedError> {
     let response = client
         .post("https://api.openai.com/v1/embeddings")
+        .timeout(Duration::from_secs(30))
         .bearer_auth(key)
         .json(&json!({
            "model": "text-embedding-3-small", "input": text
@@ -52,7 +55,7 @@ pub async fn embed(
                 .into_iter()
                 .next()
                 .map(|e| e.embedding)
-                .ok_or(EmbedError::Permanent("empty response".to_string()))
+                .ok_or(EmbedError::Permanent("empty data".to_string()))
         })?
     } else {
         let body = response.text().await.unwrap_or_default();
