@@ -34,6 +34,8 @@ impl<E: Model> Default for VectorStore<E> {
 
 #[cfg(test)]
 mod test {
+    use std::f32::consts::FRAC_1_SQRT_2;
+
     use super::VectorStore;
     use crate::{Embedding, Model};
 
@@ -80,7 +82,7 @@ mod test {
         let mut s = VectorStore::new();
         s.insert("x".into(), emb([3.0, 0.0]));
         let top = s.top_k(&emb([1.0, 1.0]), 1);
-        assert!(close(top[0].0, 0.70711), "got {}", top[0].0);
+        assert!(close(top[0].0, FRAC_1_SQRT_2), "got {}", top[0].0);
     }
 
     #[test]
