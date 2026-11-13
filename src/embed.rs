@@ -1,18 +1,70 @@
-use std::time::Duration;
+use std::{marker::PhantomData, time::Duration};
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-pub type Embedding = Vec<f32>;
+pub trait Model {
+    const NAME: &'static str;
+    const DIMS: usize;
+}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct EmbedResponse {
-    data: Vec<EmbedData>,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TextEmbedding3Small;
+impl Model for TextEmbedding3Small {
+    const NAME: &'static str = "text-embedding-3-small";
+    const DIMS: usize = 1536;
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Embedding<M: Model> {
+    v: Vec<f32>,
+    _m: PhantomData<M>,
+}
+
+fn normalise(vec: &mut [f32]) {
+    let norm = vec.iter().map(|v| v * v).sum::<f32>().sqrt();
+    if norm > 0_f32 {
+        for item in vec.iter_mut() {
+            *item /= norm
+        }
+    }
+}
+
+impl<M: Model> Embedding<M> {
+    pub fn new(mut v: Vec<f32>) -> Result<Self, String> {
+        if v.len() != M::DIMS {
+            return Err(format!(
+                "{}: expected {} dims, got {}",
+                M::NAME,
+                M::DIMS,
+                v.len()
+            ));
+        }
+        normalise(&mut v);
+        Ok(Self { v, _m: PhantomData })
+    }
+
+    pub fn len(&self) -> usize {
+        self.v.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.v.is_empty()
+    }
+
+    pub fn cosine(&self, other: &Self) -> f32 {
+        self.v.iter().zip(&other.v).map(|(a, b)| a * b).sum()
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct EmbedResponse<M: Model> {
+    data: Vec<EmbedData<M>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct EmbedData {
-    embedding: Embedding,
+struct EmbedData<M: Model> {
+    embedding: Embedding<M>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -32,11 +84,11 @@ impl From<reqwest::Error> for EmbedError {
         }
     }
 }
-pub async fn embed(
+pub async fn embed<M: Model + for<'a> Deserialize<'a>>(
     client: &reqwest::Client,
     key: &str,
     text: &str,
-) -> Result<Embedding, EmbedError> {
+) -> Result<Embedding<M>, EmbedError> {
     let response = client
         .post("https://api.openai.com/v1/embeddings")
         .timeout(Duration::from_secs(30))
@@ -50,7 +102,7 @@ pub async fn embed(
     let status = response.status();
 
     if status.is_success() {
-        response.json::<EmbedResponse>().await.map(|res| {
+        response.json::<EmbedResponse<M>>().await.map(|res| {
             res.data
                 .into_iter()
                 .next()
@@ -75,6 +127,8 @@ mod test {
 
     use tokio::{sync::Semaphore, time::Instant};
 
+    use super::TextEmbedding3Small;
+
     use super::embed;
 
     #[tokio::test]
@@ -83,7 +137,9 @@ mod test {
         let key = std::env::var("OPENAI_API_KEY").expect("set OPENAI_API_KEY");
         let client = reqwest::Client::new();
         let t0 = Instant::now();
-        let v = embed(&client, &key, "hello").await.unwrap();
+        let v = embed::<TextEmbedding3Small>(&client, &key, "hello")
+            .await
+            .unwrap();
         let w = t0.elapsed().as_millis();
         println!("elapsed: {w}");
         assert_eq!(v.len(), 1536);
@@ -97,7 +153,9 @@ mod test {
         let mut ws = Vec::new();
         for i in 0..26 {
             let t0 = Instant::now();
-            embed(&client, &key, "hello world").await.unwrap();
+            embed::<TextEmbedding3Small>(&client, &key, "hello world")
+                .await
+                .unwrap();
             let w = t0.elapsed();
             println!("call {i}: {w:?}");
             ws.push(w);
@@ -129,7 +187,9 @@ mod test {
             tasks.spawn(async move {
                 let _permit = sem.acquire_owned().await.unwrap();
                 let t0 = Instant::now();
-                embed(&client, &key, "hello world").await.unwrap();
+                embed::<TextEmbedding3Small>(&client, &key, "hello world")
+                    .await
+                    .unwrap();
                 let w = t0.elapsed();
                 println!("call {i}: {w:?}");
                 w
