@@ -3,6 +3,8 @@ use std::{marker::PhantomData, time::Duration};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
+use crate::Error;
+
 pub trait Model {
     const NAME: &'static str;
     const DIMS: usize;
@@ -67,28 +69,11 @@ struct EmbedData<M: Model> {
     embedding: Embedding<M>,
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum EmbedError {
-    #[error("retryable: {0}")]
-    Retryable(String),
-    #[error("permanent: {0}")]
-    Permanent(String),
-}
-
-impl From<reqwest::Error> for EmbedError {
-    fn from(e: reqwest::Error) -> Self {
-        if e.is_timeout() || e.is_connect() || e.is_body() {
-            EmbedError::Retryable(e.to_string())
-        } else {
-            EmbedError::Permanent(e.to_string())
-        }
-    }
-}
 pub async fn embed<M: Model + for<'a> Deserialize<'a>>(
     client: &reqwest::Client,
     key: &str,
     text: &str,
-) -> Result<Embedding<M>, EmbedError> {
+) -> Result<Embedding<M>, Error> {
     let response = client
         .post("https://api.openai.com/v1/embeddings")
         .timeout(Duration::from_secs(30))
@@ -107,16 +92,16 @@ pub async fn embed<M: Model + for<'a> Deserialize<'a>>(
                 .into_iter()
                 .next()
                 .map(|e| e.embedding)
-                .ok_or(EmbedError::Permanent("empty data".to_string()))
+                .ok_or(Error::Permanent("empty data".to_string()))
         })?
     } else {
         let body = response.text().await.unwrap_or_default();
         let msg = format!("{status}: {body}");
 
         Err(if status == 429 || status.is_server_error() {
-            EmbedError::Retryable(msg)
+            Error::Retryable(msg)
         } else {
-            EmbedError::Permanent(msg)
+            Error::Permanent(msg)
         })
     }
 }
