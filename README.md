@@ -18,7 +18,6 @@ cargo run --release -- --question "What is backpressure?" notes/*.md
 | `-q, --question` | required | The question to answer |
 | `-k, --k` | 3 | How many chunks go into the prompt |
 | `-c, --chunk-size` | 1500 | Maximum chunk size, in chars |
-| `-o, --overlap` | 200 | Longest paragraph repeated across a chunk boundary, in chars |
 
 If the answer isn't in the notes, the model is told to say "I don't know".
 
@@ -26,7 +25,7 @@ If the answer isn't in the notes, the model is told to say "I don't know".
 
 1. **Chunk**: each file is split on its Markdown structure. Headings start a new
    chunk, paragraphs are packed up to `--chunk-size`, and fenced code is never
-   split. A short paragraph at a cut is repeated in the next chunk as overlap.
+   split. Chunks don't overlap.
 2. **Embed**: every chunk is embedded with `text-embedding-3-small`, at most 4
    requests at a time, and normalised so cosine similarity is a dot product.
 3. **Retrieve**: the question is embedded the same way and the `k` most similar
@@ -47,7 +46,7 @@ let answer = rag_cli::ask(&rag, "What is backpressure?", 3).await?;
 println!("{}\nfrom: {:?}", answer.text, answer.sources);
 ```
 
-Use `ingest_with` and `ChunkOpts` to change the chunk size and overlap.
+Use `ingest_with` to pick a chunk size other than `CHUNK_SIZE` (1500).
 
 ## Tests
 

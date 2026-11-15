@@ -13,46 +13,34 @@ pub struct Chunk {
 /// the next one would overflow `size`. Fenced code is never split at its blank lines.
 /// Only a single block longer than `size` gets cut mid-text.
 ///
-/// When a chunk is closed because it's full, its last paragraph is repeated at the
-/// start of the next one if it's at most `overlap` chars, so text that straddles the
-/// cut still lands whole in one chunk.
-///
 /// # Panics
 /// If `size` is 0.
-pub fn chunks(text: &str, size: usize, overlap: usize) -> Vec<&str> {
+pub fn chunks(text: &str, size: usize) -> Vec<&str> {
     assert!(size > 0, "chunk size must be at least 1");
     let len = |r: &Range<usize>| text[r.clone()].chars().count();
 
     let mut out = Vec::new();
     let mut current: Option<Range<usize>> = None;
-    let mut last: Option<Range<usize>> = None; // last block in `current`, the overlap candidate
 
     for Block { range, heading } in blocks(text) {
         if len(&range) > size {
             out.extend(current.take().map(|c| &text[c]));
             out.extend(split_chars(&text[range], size));
-            last = None;
             continue;
         }
 
         current = Some(match current {
-            None => range.clone(),
+            None => range,
             Some(c) if heading => {
                 out.push(&text[c]);
-                range.clone()
+                range
             }
             Some(c) if len(&(c.start..range.end)) <= size => c.start..range.end,
             Some(c) => {
                 out.push(&text[c]);
-                match last {
-                    Some(l) if len(&l) <= overlap && len(&(l.start..range.end)) <= size => {
-                        l.start..range.end
-                    }
-                    _ => range.clone(),
-                }
+                range
             }
         });
-        last = Some(range);
     }
 
     out.extend(current.map(|c| &text[c]));
@@ -135,41 +123,28 @@ mod test {
 
     #[test]
     fn long_paragraph_is_cut_on_char_boundaries() {
-        let v = chunks("ação é ótima", 4, 0);
+        let v = chunks("ação é ótima", 4);
         assert_eq!(v, ["ação", " é ó", "tima"]); // 4 chars each, never cut inside "ç"
         assert_eq!(v.concat(), "ação é ótima"); // nothing lost
-        assert!(chunks("", 4, 0).is_empty());
+        assert!(chunks("", 4).is_empty());
     }
 
     #[test]
     fn headings_start_a_new_chunk() {
-        let v = chunks("# A\nalpha\n\n# B\nbeta\n", 100, 0);
+        let v = chunks("# A\nalpha\n\n# B\nbeta\n", 100);
         assert_eq!(v, ["# A\nalpha\n", "# B\nbeta\n"]);
     }
 
     #[test]
     fn hashtag_is_not_a_heading() {
-        let v = chunks("intro\n#tag here\n", 100, 0);
+        let v = chunks("intro\n#tag here\n", 100);
         assert_eq!(v, ["intro\n#tag here\n"]);
     }
 
     #[test]
     fn packs_paragraphs_up_to_size() {
-        let v = chunks("aa\n\nbb\n\ncc", 7, 0);
+        let v = chunks("aa\n\nbb\n\ncc", 7);
         assert_eq!(v, ["aa\n\nbb\n", "cc"]);
-    }
-
-    #[test]
-    fn short_last_paragraph_overlaps_into_next_chunk() {
-        let v = chunks("aa\n\nbb\n\ncc", 7, 3);
-        assert_eq!(v, ["aa\n\nbb\n", "bb\n\ncc"]);
-    }
-
-    #[test]
-    fn overlap_never_exceeds_size() {
-        // carrying "bb\n" over would make "bb\n\ncccc" (9 chars) > 7, so it's dropped
-        let v = chunks("aa\n\nbb\n\ncccc", 7, 3);
-        assert_eq!(v, ["aa\n\nbb\n", "cccc"]);
     }
 
     #[test]
@@ -184,7 +159,7 @@ mod test {
         let text = "# Title\nintro line\n\npara one is here\n\n## Sub\n\
                     a much longer paragraph that will not fit in one go\n\nend";
         for size in 1..40 {
-            for c in chunks(text, size, size / 3) {
+            for c in chunks(text, size) {
                 assert!(c.chars().count() <= size, "size {size}: {c:?}");
             }
         }

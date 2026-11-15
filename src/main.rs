@@ -1,5 +1,5 @@
 use clap::Parser;
-use rag_cli::{ChunkOpts, ask, ingest_with};
+use rag_cli::{ask, ingest_with};
 use std::{path::PathBuf, process::ExitCode};
 
 /// Answer questions about Markdown notes.
@@ -20,10 +20,6 @@ struct Args {
     /// Maximum chunk size, in chars
     #[arg(short, long, default_value_t = 1500, value_parser = clap::value_parser!(u64).range(1..))]
     chunk_size: u64,
-
-    /// Longest paragraph repeated across a chunk boundary, in chars
-    #[arg(short, long, default_value_t = 200)]
-    overlap: usize,
 }
 
 async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
@@ -32,13 +28,8 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         question,
         k,
         chunk_size,
-        overlap,
     } = args;
-    let opts = ChunkOpts {
-        size: chunk_size.try_into()?,
-        overlap,
-    };
-    let rag = ingest_with(&files, opts).await?;
+    let rag = ingest_with(&files, chunk_size.try_into()?).await?;
 
     println!("{}", ask(&rag, &question, k).await?.text);
     Ok(())

@@ -11,23 +11,8 @@ use crate::{Chunk, Error, SYSTEM, TextEmbedding3Small, VectorStore, build, chat,
 type Model = TextEmbedding3Small;
 type Index = VectorStore<Model, Chunk>;
 
-/// How docs are split before they're embedded.
-#[derive(Debug, Clone, Copy)]
-pub struct ChunkOpts {
-    /// Maximum chunk size, in chars
-    pub size: usize,
-    /// Longest paragraph repeated across a chunk boundary, in chars
-    pub overlap: usize,
-}
-
-impl Default for ChunkOpts {
-    fn default() -> Self {
-        ChunkOpts {
-            size: 1500,
-            overlap: 200,
-        }
-    }
-}
+/// Maximum chunk size [`ingest`] uses, in chars.
+pub const CHUNK_SIZE: usize = 1500;
 
 /// Embedded docs, ready to answer questions about them.
 pub struct Rag {
@@ -44,19 +29,20 @@ pub struct Answer {
     pub sources: Vec<Arc<Path>>,
 }
 
-/// Reads, chunks and embeds `files` with the default [`ChunkOpts`].
+/// Reads, chunks and embeds `files` in chunks of up to [`CHUNK_SIZE`] chars.
 pub async fn ingest(files: &[PathBuf]) -> Result<Rag, Error> {
-    ingest_with(files, ChunkOpts::default()).await
+    ingest_with(files, CHUNK_SIZE).await
 }
 
-/// Reads, chunks and embeds `files`. Needs `OPENAI_API_KEY` set.
-pub async fn ingest_with(files: &[PathBuf], opts: ChunkOpts) -> Result<Rag, Error> {
+/// Reads, chunks and embeds `files` in chunks of up to `chunk_size` chars.
+/// Needs `OPENAI_API_KEY` set.
+pub async fn ingest_with(files: &[PathBuf], chunk_size: usize) -> Result<Rag, Error> {
     let docs = read_docs(files).await?;
     let key: Arc<str> = env::var("OPENAI_API_KEY")
         .map_err(|_| Error::Permanent("OPENAI_API_KEY is not set".into()))?
         .into();
     let client = reqwest::Client::new(); // per-request timeout is set in openai::post
-    let index = embed_chunks(&client, &key, &docs, opts).await?;
+    let index = embed_chunks(&client, &key, &docs, chunk_size).await?;
     Ok(Rag { client, key, index })
 }
 
@@ -84,14 +70,14 @@ async fn embed_chunks(
     client: &reqwest::Client,
     key: &Arc<str>,
     docs: &[(PathBuf, String)],
-    opts: ChunkOpts,
+    chunk_size: usize,
 ) -> Result<Index, Error> {
     let semaphore = Arc::new(Semaphore::new(4));
     let mut set = JoinSet::new();
 
     for (path, text) in docs {
         let source: Arc<Path> = path.as_path().into();
-        for text in chunks(text, opts.size, opts.overlap) {
+        for text in chunks(text, chunk_size) {
             let chunk = Chunk {
                 source: Arc::clone(&source),
                 text: text.to_owned(),
