@@ -16,7 +16,7 @@ struct Message {
     content: String,
 }
 
-async fn chat(
+pub async fn chat(
     client: &reqwest::Client,
     key: &str,
     system: &str,
