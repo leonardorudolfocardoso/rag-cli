@@ -1,24 +1,25 @@
 use crate::{Embedding, Model};
 
-pub struct VectorStore<E: Model> {
-    items: Vec<(String, Embedding<E>)>,
+/// Items of type `T` searchable by the similarity of their embeddings.
+pub struct VectorStore<E: Model, T = String> {
+    items: Vec<(T, Embedding<E>)>,
 }
 
-impl<E: Model> VectorStore<E> {
+impl<E: Model, T> VectorStore<E, T> {
     pub fn new() -> Self {
         VectorStore { items: vec![] }
     }
 
-    pub fn insert(&mut self, text: String, vec: Embedding<E>) {
-        self.items.push((text, vec))
+    pub fn insert(&mut self, item: T, vec: Embedding<E>) {
+        self.items.push((item, vec))
     }
 
-    pub fn top_k(&self, q: &Embedding<E>, k: usize) -> Vec<(f32, &str)> {
+    pub fn top_k(&self, q: &Embedding<E>, k: usize) -> Vec<(f32, &T)> {
         // score all + sort + truncate
-        let mut scored: Vec<(f32, &str)> = Vec::with_capacity(self.items.len());
-        for (text, item) in &self.items {
-            let score = item.cosine(q);
-            scored.push((score, text));
+        let mut scored: Vec<(f32, &T)> = Vec::with_capacity(self.items.len());
+        for (item, vec) in &self.items {
+            let score = vec.cosine(q);
+            scored.push((score, item));
         }
         scored.sort_by(|a, b| b.0.total_cmp(&a.0));
         scored.truncate(k);
@@ -26,7 +27,7 @@ impl<E: Model> VectorStore<E> {
     }
 }
 
-impl<E: Model> Default for VectorStore<E> {
+impl<E: Model, T> Default for VectorStore<E, T> {
     fn default() -> Self {
         Self::new()
     }
@@ -56,7 +57,7 @@ mod test {
     }
 
     fn sample() -> VectorStore<Tiny> {
-        let mut s = VectorStore::new();
+        let mut s = VectorStore::<Tiny>::new();
         s.insert("a".into(), emb([1.0, 0.0]));
         s.insert("b".into(), emb([0.0, 1.0]));
         s.insert("c".into(), emb([1.0, 1.0])); // not unit length: Embedding::new must normalise
@@ -68,7 +69,7 @@ mod test {
         // q = [1, 0.1]: cos with a ≈ 0.9950, c ≈ 0.7740, b ≈ 0.0995
         let s = sample();
         let top = s.top_k(&emb([1.0, 0.1]), 3);
-        let texts: Vec<&str> = top.iter().map(|(_, t)| *t).collect();
+        let texts: Vec<&str> = top.iter().map(|(_, t)| t.as_str()).collect();
         assert_eq!(texts, ["a", "c", "b"]);
         assert!(close(top[0].0, 0.99504), "got {}", top[0].0);
         assert!(close(top[1].0, 0.77396), "got {}", top[1].0);
@@ -79,7 +80,7 @@ mod test {
     fn unnormalised_input_scores_as_cosine() {
         // stored [3, 0] vs query [1, 1]: cos = 1/√2 ≈ 0.7071.
         // If Embedding::new didn't normalise, the score would be 3.0.
-        let mut s = VectorStore::new();
+        let mut s = VectorStore::<Tiny>::new();
         s.insert("x".into(), emb([3.0, 0.0]));
         let top = s.top_k(&emb([1.0, 1.0]), 1);
         assert!(close(top[0].0, FRAC_1_SQRT_2), "got {}", top[0].0);
@@ -87,7 +88,7 @@ mod test {
 
     #[test]
     fn zero_vectors_score_zero() {
-        let mut s = VectorStore::new();
+        let mut s = VectorStore::<Tiny>::new();
         s.insert("zero".into(), emb([0.0, 0.0]));
         s.insert("a".into(), emb([1.0, 0.0]));
 
