@@ -2,26 +2,6 @@ use clap::Parser;
 use rag_cli::{ChunkOpts, ask, ingest_with};
 use std::{path::PathBuf, process::ExitCode};
 
-const QUESTIONS: [(&str, &str); 5] = [
-    (
-        "Why should vectors be normalised when they're stored?",
-        "3Nd → Nd per search, paid once at ingest",
-    ),
-    (
-        "What goes wrong when data arrives faster than the consumer can process it, with nothing slowing the sender?",
-        "memory, latency, GC, degradation",
-    ),
-    (
-        "Where does caipora sit in the MCP picture?",
-        "between host and tool servers",
-    ),
-    (
-        "My RAG gave a wrong answer even though the right chunk was retrieved. What should I fix?",
-        "the prompt (model problem)",
-    ),
-    ("What is PostgreSQL's default port?", "I don't know"),
-];
-
 /// Answer questions about Markdown notes.
 #[derive(Parser)]
 struct Args {
@@ -29,9 +9,9 @@ struct Args {
     #[arg(required = true)]
     files: Vec<PathBuf>,
 
-    /// The question. If omitted, runs the 5 eval questions
+    /// The question to answer
     #[arg(short, long)]
-    question: Option<String>,
+    question: String,
 
     /// How many chunks go into the prompt
     #[arg(short, long, default_value_t = 3)]
@@ -60,15 +40,7 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     };
     let rag = ingest_with(&files, opts).await?;
 
-    match question {
-        Some(question) => println!("{}", ask(&rag, &question, k).await?.text),
-        None => {
-            for (question, expected) in QUESTIONS {
-                let got = ask(&rag, question, k).await?.text;
-                println!("Q: {question}\nexpected: {expected}\ngot: {got}\n");
-            }
-        }
-    }
+    println!("{}", ask(&rag, &question, k).await?.text);
     Ok(())
 }
 
