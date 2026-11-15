@@ -1,23 +1,24 @@
-use std::{marker::PhantomData, time::Duration};
+use std::marker::PhantomData;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 
-use crate::Error;
+use crate::{Error, openai};
 
 pub trait Model {
     const NAME: &'static str;
     const DIMS: usize;
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct TextEmbedding3Small;
 impl Model for TextEmbedding3Small {
     const NAME: &'static str = "text-embedding-3-small";
     const DIMS: usize = 1536;
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(try_from = "Vec<f32>", bound = "")]
 pub struct Embedding<M: Model> {
     v: Vec<f32>,
     _m: PhantomData<M>,
@@ -32,7 +33,17 @@ fn normalise(vec: &mut [f32]) {
     }
 }
 
+impl<M: Model> TryFrom<Vec<f32>> for Embedding<M> {
+    type Error = String;
+
+    fn try_from(v: Vec<f32>) -> Result<Self, String> {
+        Self::new(v)
+    }
+}
+
 impl<M: Model> Embedding<M> {
+    /// Builds an embedding for model `M`, checking that `v` has exactly `M::DIMS`
+    /// elements and L2-normalising it so [`cosine`](Self::cosine) is a plain dot product.
     pub fn new(mut v: Vec<f32>) -> Result<Self, String> {
         if v.len() != M::DIMS {
             return Err(format!(
@@ -60,50 +71,31 @@ impl<M: Model> Embedding<M> {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(bound = "")]
 struct EmbedResponse<M: Model> {
     data: Vec<EmbedData<M>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(bound = "")]
 struct EmbedData<M: Model> {
     embedding: Embedding<M>,
 }
 
-pub async fn embed<M: Model + for<'a> Deserialize<'a>>(
+pub async fn embed<M: Model>(
     client: &reqwest::Client,
     key: &str,
     text: &str,
 ) -> Result<Embedding<M>, Error> {
-    let response = client
-        .post("https://api.openai.com/v1/embeddings")
-        .timeout(Duration::from_secs(30))
-        .bearer_auth(key)
-        .json(&json!({
-           "model": "text-embedding-3-small", "input": text
-        }))
-        .send()
-        .await?;
+    let res: EmbedResponse<M> = openai::post(
+        client,
+        key,
+        "embeddings",
+        &json!({ "model": M::NAME, "input": text }),
+    )
+    .await?;
 
-    let status = response.status();
-
-    if status.is_success() {
-        response.json::<EmbedResponse<M>>().await.map(|res| {
-            res.data
-                .into_iter()
-                .next()
-                .map(|e| e.embedding)
-                .ok_or(Error::Permanent("empty data".to_string()))
-        })?
-    } else {
-        let body = response.text().await.unwrap_or_default();
-        let msg = format!("{status}: {body}");
-
-        Err(if status == 429 || status.is_server_error() {
-            Error::Retryable(msg)
-        } else {
-            Error::Permanent(msg)
-        })
-    }
+    Ok(openai::first(res.data, "data")?.embedding)
 }
 
 #[cfg(test)]
@@ -112,9 +104,33 @@ mod test {
 
     use tokio::{sync::Semaphore, time::Instant};
 
-    use super::TextEmbedding3Small;
+    use super::{EmbedResponse, Model, TextEmbedding3Small, embed};
 
-    use super::embed;
+    struct Tiny;
+    impl Model for Tiny {
+        const NAME: &'static str = "tiny";
+        const DIMS: usize = 2;
+    }
+
+    #[test]
+    fn decodes_api_shape_through_new() {
+        let body = r#"{"data":[{"embedding":[3.0,4.0]}]}"#;
+        let res: EmbedResponse<Tiny> = serde_json::from_str(body).unwrap();
+        let e = &res.data[0].embedding;
+        assert!((e.cosine(e) - 1.0).abs() < 1e-6); // normalised on decode
+    }
+
+    #[test]
+    fn decode_rejects_wrong_dimension() {
+        let body = r#"{"data":[{"embedding":[1.0]}]}"#;
+        let err = serde_json::from_str::<EmbedResponse<Tiny>>(body)
+            .err()
+            .unwrap();
+        assert!(
+            err.to_string().contains("expected 2 dims, got 1"),
+            "got {err}"
+        );
+    }
 
     #[tokio::test]
     #[ignore]

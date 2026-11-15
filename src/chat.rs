@@ -1,9 +1,7 @@
-use std::time::Duration;
-
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::Error;
+use crate::{Error, openai};
 
 #[derive(Deserialize)]
 struct ChatResponse {
@@ -24,48 +22,36 @@ async fn chat(
     system: &str,
     user: &str,
 ) -> Result<String, Error> {
-    let response = client
-        .post("https://api.openai.com/v1/chat/completions")
-        .timeout(Duration::from_secs(30))
-        .bearer_auth(key)
-        .json(&json!({
+    let res: ChatResponse = openai::post(
+        client,
+        key,
+        "chat/completions",
+        &json!({
             "model": "gpt-4o-mini",
             "temperature": 0,                  // same question → same answer, so runs are comparable
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user",   "content": user}
             ]
-        }))
-        .send()
-        .await?;
+        }),
+    )
+    .await?;
 
-    let status = response.status();
-
-    if status.is_success() {
-        response.json::<ChatResponse>().await.map(|res| {
-            res.choices
-                .into_iter()
-                .next()
-                .map(|c| c.message.content)
-                .ok_or(Error::Permanent("empty data".to_string()))
-        })?
-    } else {
-        let body = response.text().await.unwrap_or_default();
-        let msg = format!("{status}: {body}");
-
-        Err(if status == 429 || status.is_server_error() {
-            Error::Retryable(msg)
-        } else {
-            Error::Permanent(msg)
-        })
-    }
+    Ok(openai::first(res.choices, "choices")?.message.content)
 }
 
 #[cfg(test)]
 mod test {
     use tokio::time::Instant;
 
-    use super::chat;
+    use super::{ChatResponse, chat};
+
+    #[test]
+    fn parses_chat_response() {
+        let raw = r#"{"choices": [{"message": {"role": "assistant", "content": "pong"}}]}"#;
+        let res: ChatResponse = serde_json::from_str(raw).unwrap();
+        assert_eq!(res.choices[0].message.content, "pong");
+    }
 
     const SYSTEM: &str = "You are a terse assistant.";
     const USER: &str = "Reply with exactly one word: pong";
