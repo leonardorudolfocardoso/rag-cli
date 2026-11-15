@@ -17,3 +17,6 @@ pub use prompt::{SYSTEM, build};
 
 mod chunk;
 pub use chunk::*;
+
+mod rag;
+pub use rag::*;

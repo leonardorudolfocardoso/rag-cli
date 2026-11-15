@@ -6,6 +6,8 @@ pub enum Error {
     Retryable(String),
     #[error("permanent: {0}")]
     Permanent(String),
+    #[error("io: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 impl Error {

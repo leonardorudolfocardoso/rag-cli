@@ -1,0 +1,12 @@
+- Readable produce faster than Writable can consume
+- examples
+	- fast network and slow disk
+	- fast upload and slow processing
+- without backpressure -> chunks accumulates
+	- memmory explodes
+	- latency increases
+	- GC suffers
+	- process degrades
+- so, [[backpressure]] is the consumer hability to slow the producer
+- [[node]] pipe method does that
+-
