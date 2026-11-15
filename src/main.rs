@@ -25,7 +25,7 @@ const QUESTIONS: [(&str, &str); 5] = [
 /// Answer questions about Markdown notes.
 #[derive(Parser)]
 struct Args {
-    /// Files to ingest (e.g. docs/*.md)
+    /// Files to ingest (e.g. notes/*.md)
     #[arg(required = true)]
     files: Vec<PathBuf>,
 
