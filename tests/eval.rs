@@ -38,18 +38,17 @@ const CASES: &[Case] = &[
 #[tokio::test]
 #[ignore]
 async fn eval() {
-    let rag = ingest(&[
-        "tests/fixtures/RAG and Agents.md".into(),
-        "tests/fixtures/backpressure.md".into(),
-    ])
-    .await
-    .unwrap();
+    let files: Vec<_> = std::fs::read_dir("tests/fixtures")
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    let rag = ingest(&files).await.unwrap();
     let (mut hits, mut correct) = (0, 0);
     for c in CASES {
         let a = ask(&rag, c.q, 3).await.unwrap();
         let hit = c
             .source
-            .map_or(true, |s| a.sources.iter().any(|p| p.ends_with(s)));
+            .is_none_or(|s| a.sources.iter().any(|p| p.ends_with(s)));
         let ok = c.keywords.iter().all(|k| a.text.to_lowercase().contains(k));
         hits += hit as u32;
         correct += ok as u32;

@@ -1,0 +1,21 @@
+tags:: tooling, study
+
+- ## LSP
+	- Language Server Protocol, created by Microsoft for VS Code
+	- JSON-RPC between the editor (client) and a language server
+	- why a standard: N editors x M languages of plugins -> N + M
+- ## Lifecycle
+	- initialize: client and server exchange capabilities
+	- initialized, then normal requests
+	- shutdown, then exit
+- ## Common requests
+	- textDocument/completion
+	- textDocument/definition
+	- textDocument/hover
+	- textDocument/references
+	- textDocument/publishDiagnostics is a notification from the server
+- ## Document sync
+	- didOpen, didChange, didClose
+	- full sync sends the whole file, incremental sends ranges
+- ## Servers I use
+	- rust-analyzer, typescript-language-server, pyright

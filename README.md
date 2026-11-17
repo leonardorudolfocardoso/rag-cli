@@ -56,7 +56,10 @@ cargo test --test eval -- --ignored --nocapture     # eval, calls OpenAI
 ```
 
 The eval ingests the notes in `tests/fixtures` and asks five questions, one of
-them deliberately not covered by the notes. It reports:
+them deliberately not covered by the notes. Only `RAG and Agents.md` and
+`backpressure.md` hold answers; the other fixtures are distractors that share
+vocabulary with the questions (streams, vectors, protocols, PostgreSQL) so
+retrieval has to rank the right file above near misses. It reports:
 
 - **recall@3**: whether the file holding the answer was among the top 3 chunks
 - **accuracy**: whether the answer contains the expected keywords

@@ -1,0 +1,24 @@
+tags:: backend, study
+
+- ## Why
+	- protect a shared service from one noisy client
+	- keep costs predictable on paid APIs
+- ## Algorithms
+	- fixed window: counter per minute, bursts at the window edge
+	- sliding window log: exact, stores a timestamp per request
+	- token bucket
+		- bucket of capacity B refilled at rate r
+		- each request takes a token, allows bursts up to B
+	- leaky bucket: queue drained at a constant rate, smooths output
+- ## The response
+	- 429 Too Many Requests
+	- Retry-After header in seconds or as an HTTP date
+	- X-RateLimit-Remaining / X-RateLimit-Reset are common but not standard
+- ## Client side
+	- retry with exponential backoff: 1s, 2s, 4s, 8s
+	- add jitter so clients that failed together don't retry together
+	- cap the number of attempts
+	- only retry idempotent requests, or send an idempotency key
+- ## Where to enforce
+	- API gateway or reverse proxy (nginx limit_req)
+	- shared counter in Redis when there are many instances

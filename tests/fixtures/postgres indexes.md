@@ -1,0 +1,21 @@
+tags:: databases, postgres
+
+- ## B-tree
+	- default index type in PostgreSQL
+	- equality and range queries, ORDER BY
+	- multicolumn: leftmost columns must be in the filter
+- ## Other types
+	- Hash: equality only
+	- GIN: jsonb, arrays, full-text search (tsvector)
+	- GiST: geometric types, ranges, PostGIS
+	- BRIN: tiny index for huge tables where values follow insertion order, e.g. timestamps
+- ## Partial and expression indexes
+	- CREATE INDEX ... WHERE deleted_at IS NULL
+	- CREATE INDEX ... ON users (lower(email))
+- ## Checking a query
+	- EXPLAIN shows the plan, EXPLAIN ANALYZE runs it
+	- Seq Scan on a big table with a selective filter -> missing index
+	- stale statistics -> run ANALYZE
+- ## Costs
+	- every index slows down writes
+	- CREATE INDEX CONCURRENTLY avoids locking the table, but is slower

@@ -1,0 +1,22 @@
+tags:: node, study
+
+- ## Stream types
+	- Readable: source of data, e.g. fs.createReadStream, http request
+	- Writable: destination, e.g. fs.createWriteStream, http response
+	- Duplex: both sides independent, e.g. TCP socket
+	- Transform: Duplex where output is computed from input, e.g. zlib.createGzip
+- ## Modes
+	- flowing: data events fire as soon as data is available
+	- paused: call read() explicitly
+	- attaching a 'data' listener switches to flowing
+- ## highWaterMark
+	- buffer threshold in bytes (16 KiB default) or objects in objectMode
+	- write() returns false once the internal buffer is above it
+	- wait for 'drain' before writing again
+- ## pipeline vs pipe
+	- stream.pipeline(a, b, c, cb) forwards errors and destroys every stream on failure
+	- pipe() leaves streams open on error, need manual cleanup
+	- promises version: await pipeline(...) from 'node:stream/promises'
+- ## Async iteration
+	- for await (const chunk of readable) works on any Readable
+	- Readable.from(iterable) builds a stream from a generator

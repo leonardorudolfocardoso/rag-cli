@@ -1,0 +1,24 @@
+tags:: AI, databases
+
+- ## What they store
+	- id, vector, metadata (source file, tags, timestamps)
+	- metadata filters run before or after the similarity search
+- ## Exact vs approximate search
+	- exact (flat) scan compares the query with every vector, fine up to ~100k
+	- ANN trades a bit of recall for much faster queries
+- ## Index types
+	- HNSW
+		- layered graph, greedy walk from the top layer down
+		- params: M (edges per node), ef_construction, ef_search
+		- fast queries, high memory, slow to build
+	- IVF
+		- k-means clusters the vectors, search only the nprobe closest clusters
+		- needs training data before inserting
+	- PQ (product quantization)
+		- splits each vector into sub-vectors and stores a code per sub-vector
+		- big memory savings, lossy distances
+- ## Distance metrics
+	- L2 (euclidean), inner product, cosine
+	- the metric is picked when the collection is created and can't change later
+- ## Options
+	- pgvector, Qdrant, Weaviate, Milvus, Pinecone, FAISS (library, not a server)
