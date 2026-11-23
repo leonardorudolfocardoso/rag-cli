@@ -1,42 +1,55 @@
 use std::{
-    env,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 use tokio::{sync::Semaphore, task::JoinSet};
 
-use crate::{Chunk, Error, SYSTEM, TextEmbedding3Small, VectorStore, build, chat, chunks, embed};
-
-type Model = TextEmbedding3Small;
-type Index = VectorStore<Model, Chunk>;
-
-/// Maximum chunk size [`Rag::ingest`] uses, in chars.
-pub const CHUNK_SIZE: usize = 1500;
+use crate::{
+    Chat, Chunk, Error, Model, OpenAiClient, SYSTEM, TextEmbedding3Small, VectorStore, build,
+    chunks, embed,
+};
 
 /// Embedded docs, ready to answer questions about them.
-pub struct Rag {
-    client: reqwest::Client,
-    key: Arc<str>,
-    index: Index,
+pub struct Rag<M: Model = TextEmbedding3Small, C: Chat = OpenAiClient> {
+    embedder: OpenAiClient,
+    chat: C,
+    index: VectorStore<M, Chunk>,
 }
 
 impl Rag {
-    /// Reads, chunks and embeds `files` in chunks of up to [`CHUNK_SIZE`] chars.
+    /// Maximum chunk size [`Rag::ingest`] uses, in chars.
+    pub const DEFAULT_CHUNK_SIZE: usize = 1500;
+}
+
+impl<M: Model + 'static> Rag<M, OpenAiClient> {
+    /// Reads, chunks and embeds `files` in chunks of up to [`Rag::DEFAULT_CHUNK_SIZE`] chars.
     pub async fn ingest(files: &[PathBuf]) -> Result<Self, Error> {
-        Self::ingest_with(files, CHUNK_SIZE).await
+        Self::ingest_with(files, Rag::DEFAULT_CHUNK_SIZE).await
     }
 
     /// Reads, chunks and embeds `files` in chunks of up to `chunk_size` chars.
     /// Needs `OPENAI_API_KEY` set.
     pub async fn ingest_with(files: &[PathBuf], chunk_size: usize) -> Result<Self, Error> {
         let docs = read_docs(files).await?;
-        let key: Arc<str> = env::var("OPENAI_API_KEY")
-            .map_err(|_| Error::Permanent("OPENAI_API_KEY is not set".into()))?
-            .into();
-        let client = reqwest::Client::new(); // per-request timeout is set in openai::post
-        let index = embed_chunks(&client, &key, &docs, chunk_size).await?;
-        Ok(Self { client, key, index })
+        let client = OpenAiClient::from_env()?;
+        let index = embed_chunks(&client, &docs, chunk_size).await?;
+        Ok(Self {
+            chat: client.clone(),
+            embedder: client,
+            index,
+        })
+    }
+}
+
+impl<M: Model, C: Chat> Rag<M, C> {
+    /// Replaces the chat backend while keeping the embedded index intact.
+    pub fn with_chat<C2: Chat>(self, chat: C2) -> Rag<M, C2> {
+        Rag {
+            embedder: self.embedder,
+            chat,
+            index: self.index,
+        }
     }
 
     /// Number of chunks stored in the index.
@@ -46,7 +59,7 @@ impl Rag {
 
     /// Embeds `question` and returns the `k` closest chunks, best match first.
     pub async fn retrieve(&self, question: &str, k: usize) -> Result<Vec<Hit>, Error> {
-        let q = embed::<Model>(&self.client, &self.key, question).await?;
+        let q = embed::<M>(&self.embedder, question).await?;
         Ok(self
             .index
             .top_k(&q, k)
@@ -62,7 +75,7 @@ impl Rag {
     pub async fn ask(&self, question: &str, k: usize) -> Result<Answer, Error> {
         let hits = self.retrieve(question, k).await?;
         let top: Vec<(f32, &Chunk)> = hits.iter().map(|h| (h.score, &h.chunk)).collect();
-        let text = chat(&self.client, &self.key, SYSTEM, &build(question, &top)).await?;
+        let text = self.chat.chat(SYSTEM, &build(question, &top)).await?;
         Ok(Answer { text, hits })
     }
 }
@@ -100,12 +113,11 @@ async fn read_docs(files: &[PathBuf]) -> std::io::Result<Vec<(PathBuf, String)>>
 }
 
 /// Chunks every doc and embeds the chunks, with at most 4 requests in flight.
-async fn embed_chunks(
-    client: &reqwest::Client,
-    key: &Arc<str>,
+async fn embed_chunks<M: Model + 'static>(
+    client: &OpenAiClient,
     docs: &[(PathBuf, String)],
     chunk_size: usize,
-) -> Result<Index, Error> {
+) -> Result<VectorStore<M, Chunk>, Error> {
     let semaphore = Arc::new(Semaphore::new(4));
     let mut set = JoinSet::new();
 
@@ -118,17 +130,16 @@ async fn embed_chunks(
             };
             let client = client.clone();
             let semaphore = Arc::clone(&semaphore);
-            let key = Arc::clone(key);
             set.spawn(async move {
                 // the semaphore is never closed, so acquire can't fail
                 let _perm = semaphore.acquire().await.unwrap();
-                let embedding = embed::<Model>(&client, &key, &chunk.text).await?;
+                let embedding = embed::<M>(&client, &chunk.text).await?;
                 Ok::<_, Error>((chunk, embedding))
             });
         }
     }
 
-    let mut index = Index::new();
+    let mut index = VectorStore::new();
     // returning early drops the set, which aborts the chunks still in flight
     while let Some(res) = set.join_next().await {
         let (chunk, embedding) = res.expect("embed task panicked")?;

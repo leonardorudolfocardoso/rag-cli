@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::{Error, openai};
+use crate::{Error, OpenAiClient, openai};
 
 #[derive(Deserialize)]
 struct ChatResponse {
@@ -16,35 +16,37 @@ struct Message {
     content: String,
 }
 
-pub async fn chat(
-    client: &reqwest::Client,
-    key: &str,
-    system: &str,
-    user: &str,
-) -> Result<String, Error> {
-    let res: ChatResponse = openai::post(
-        client,
-        key,
-        "chat/completions",
-        &json!({
-            "model": "gpt-4o-mini",
-            "temperature": 0,                  // same question → same answer, so runs are comparable
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user",   "content": user}
-            ]
-        }),
-    )
-    .await?;
+/// A chat model capable of answering a user message given a system prompt.
+pub trait Chat {
+    fn chat(&self, system: &str, user: &str) -> impl Future<Output = Result<String, Error>> + Send;
+}
 
-    Ok(openai::first(res.choices, "choices")?.message.content)
+impl Chat for OpenAiClient {
+    async fn chat(&self, system: &str, user: &str) -> Result<String, Error> {
+        let res: ChatResponse = self
+            .post(
+                "chat/completions",
+                &json!({
+                    "model": "gpt-4o-mini",
+                    "temperature": 0,                  // same question → same answer, so runs are comparable
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user",   "content": user}
+                    ]
+                }),
+            )
+            .await?;
+
+        Ok(openai::first(res.choices, "choices")?.message.content)
+    }
 }
 
 #[cfg(test)]
 mod test {
     use tokio::time::Instant;
 
-    use super::{ChatResponse, chat};
+    use super::{Chat, ChatResponse};
+    use crate::OpenAiClient;
 
     #[test]
     fn parses_chat_response() {
@@ -59,10 +61,9 @@ mod test {
     #[tokio::test]
     #[ignore]
     async fn chat_returns_answer() {
-        let key = std::env::var("OPENAI_API_KEY").expect("set OPENAI_API_KEY");
-        let client = reqwest::Client::new();
+        let client = OpenAiClient::from_env().expect("set OPENAI_API_KEY");
         let t0 = Instant::now();
-        let answer = chat(&client, &key, SYSTEM, USER).await.unwrap();
+        let answer = client.chat(SYSTEM, USER).await.unwrap();
         let w = t0.elapsed().as_millis();
         println!("elapsed: {w}");
         println!("answer: {answer}");
@@ -72,12 +73,11 @@ mod test {
     #[tokio::test]
     #[ignore]
     async fn chat_latency_measurement() {
-        let key = std::env::var("OPENAI_API_KEY").expect("set OPENAI_API_KEY");
-        let client = reqwest::Client::new(); // created once, reused
+        let client = OpenAiClient::from_env().expect("set OPENAI_API_KEY");
         let mut ws = Vec::new();
         for i in 0..26 {
             let t0 = Instant::now();
-            chat(&client, &key, SYSTEM, USER).await.unwrap();
+            client.chat(SYSTEM, USER).await.unwrap();
             let w = t0.elapsed();
             println!("call {i}: {w:?}");
             ws.push(w);

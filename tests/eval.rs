@@ -9,7 +9,7 @@ use std::{
     path::PathBuf,
 };
 
-use rag_cli::{CHUNK_SIZE, Hit, Rag, chunks};
+use rag_cli::{Hit, Rag, chunks};
 use serde::Deserialize;
 
 const K: usize = 3;
@@ -129,7 +129,7 @@ fn eval_cases_match_fixture_chunks() {
     let mut chunk_index: Vec<(PathBuf, String)> = Vec::new();
     for path in &files {
         let text = std::fs::read_to_string(path).unwrap();
-        for c in chunks(&text, CHUNK_SIZE) {
+        for c in chunks(&text, Rag::DEFAULT_CHUNK_SIZE) {
             chunk_index.push((path.clone(), c.to_lowercase()));
         }
     }
@@ -241,11 +241,12 @@ fn reciprocal_rank_scores_single_and_multi_chunk_cases() {
 async fn eval_retrieval() {
     let files = fixture_files();
     let cases = load_cases();
-    let rag = Rag::ingest(&files).await.unwrap();
+    let rag: Rag = Rag::ingest(&files).await.unwrap();
     println!(
-        "Corpus: {} files, {} chunks (k={K}, chunk_size={CHUNK_SIZE})\n",
+        "Corpus: {} files, {} chunks (k={K}, chunk_size={})\n",
         files.len(),
-        rag.chunk_count()
+        rag.chunk_count(),
+        Rag::DEFAULT_CHUNK_SIZE
     );
 
     let mut by_cat: BTreeMap<Category, Bucket> = BTreeMap::new();
@@ -332,11 +333,12 @@ async fn eval_retrieval() {
 async fn eval_e2e() {
     let files = fixture_files();
     let cases = load_cases();
-    let rag = Rag::ingest(&files).await.unwrap();
+    let rag: Rag = Rag::ingest(&files).await.unwrap();
     println!(
-        "Corpus: {} files, {} chunks (k={K}, chunk_size={CHUNK_SIZE})\n",
+        "Corpus: {} files, {} chunks (k={K}, chunk_size={})\n",
         files.len(),
-        rag.chunk_count()
+        rag.chunk_count(),
+        Rag::DEFAULT_CHUNK_SIZE
     );
 
     let mut by_cat: BTreeMap<Category, Bucket> = BTreeMap::new();

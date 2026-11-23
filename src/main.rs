@@ -18,7 +18,7 @@ struct Args {
     k: usize,
 
     /// Maximum chunk size, in chars
-    #[arg(short, long, default_value_t = 1500, value_parser = clap::value_parser!(u64).range(1..))]
+    #[arg(short, long, default_value_t = Rag::DEFAULT_CHUNK_SIZE as u64, value_parser = clap::value_parser!(u64).range(1..))]
     chunk_size: u64,
 }
 
@@ -29,7 +29,7 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         k,
         chunk_size,
     } = args;
-    let rag = Rag::ingest_with(&files, chunk_size.try_into()?).await?;
+    let rag: Rag = Rag::ingest_with(&files, chunk_size.try_into()?).await?;
 
     println!("{}", rag.ask(&question, k).await?.text);
     Ok(())

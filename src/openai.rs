@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use serde::{Serialize, de::DeserializeOwned};
 
@@ -8,14 +8,62 @@ const BASE: &str = "https://api.openai.com/v1";
 const ATTEMPTS: u32 = 4;
 const BACKOFF: Duration = Duration::from_millis(500);
 
-/// POSTs `body` to the OpenAI API, retrying rate limits, server errors and timeouts.
-pub(crate) async fn post<T: DeserializeOwned>(
-    client: &reqwest::Client,
-    key: &str,
-    path: &str,
-    body: &impl Serialize,
-) -> Result<T, Error> {
-    retry(|| post_once(client, key, path, body)).await
+/// HTTP client for the OpenAI API, holding a reusable `reqwest::Client` and API key.
+#[derive(Clone)]
+pub struct OpenAiClient {
+    http: reqwest::Client,
+    key: Arc<str>,
+}
+
+impl OpenAiClient {
+    /// Creates a client with the given OpenAI API key.
+    pub fn new(key: impl Into<Arc<str>>) -> Self {
+        Self {
+            http: reqwest::Client::new(), // per-request timeout is set in post_once
+            key: key.into(),
+        }
+    }
+
+    /// Creates a client using the `OPENAI_API_KEY` environment variable.
+    pub fn from_env() -> Result<Self, Error> {
+        let key = std::env::var("OPENAI_API_KEY")
+            .map_err(|_| Error::Permanent("OPENAI_API_KEY is not set".into()))?;
+        Ok(Self::new(key))
+    }
+
+    /// POSTs `body` to the OpenAI API, retrying rate limits, server errors and timeouts.
+    pub(crate) async fn post<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &impl Serialize,
+    ) -> Result<T, Error> {
+        retry(|| self.post_once(path, body)).await
+    }
+
+    /// Sends a single POST request without retrying, classifying HTTP failures as
+    /// retryable or permanent errors. Called by [`Self::post`], which adds retries.
+    async fn post_once<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &impl Serialize,
+    ) -> Result<T, Error> {
+        let url = format!("{BASE}/{path}");
+        let response = self
+            .http
+            .post(url)
+            .timeout(Duration::from_secs(30))
+            .bearer_auth(&*self.key)
+            .json(body)
+            .send()
+            .await?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(Error::from_status(status, body));
+        }
+        Ok(response.json().await?)
+    }
 }
 
 /// Runs `f` until it succeeds, fails permanently, or uses up `ATTEMPTS`,
@@ -36,29 +84,6 @@ where
         }
     }
     f().await
-}
-
-async fn post_once<T: DeserializeOwned>(
-    client: &reqwest::Client,
-    key: &str,
-    path: &str,
-    body: &impl Serialize,
-) -> Result<T, Error> {
-    let url = format!("{BASE}/{path}");
-    let response = client
-        .post(url)
-        .timeout(Duration::from_secs(30))
-        .bearer_auth(key)
-        .json(body)
-        .send()
-        .await?;
-
-    let status = response.status();
-    if !status.is_success() {
-        let body = response.text().await.unwrap_or_default();
-        return Err(Error::from_status(status, body));
-    }
-    Ok(response.json().await?)
 }
 
 pub(crate) fn first<T>(items: Vec<T>, what: &str) -> Result<T, Error> {

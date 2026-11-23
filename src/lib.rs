@@ -2,6 +2,7 @@ mod error;
 pub use error::*;
 
 mod openai;
+pub use openai::OpenAiClient;
 
 mod embed;
 pub use embed::*;

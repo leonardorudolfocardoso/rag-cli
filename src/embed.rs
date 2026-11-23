@@ -3,9 +3,9 @@ use std::marker::PhantomData;
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::{Error, openai};
+use crate::{Error, OpenAiClient, openai};
 
-pub trait Model {
+pub trait Model: Send + Sync {
     const NAME: &'static str;
     const DIMS: usize;
 }
@@ -82,18 +82,10 @@ struct EmbedData<M: Model> {
     embedding: Embedding<M>,
 }
 
-pub async fn embed<M: Model>(
-    client: &reqwest::Client,
-    key: &str,
-    text: &str,
-) -> Result<Embedding<M>, Error> {
-    let res: EmbedResponse<M> = openai::post(
-        client,
-        key,
-        "embeddings",
-        &json!({ "model": M::NAME, "input": text }),
-    )
-    .await?;
+pub async fn embed<M: Model>(client: &OpenAiClient, text: &str) -> Result<Embedding<M>, Error> {
+    let res: EmbedResponse<M> = client
+        .post("embeddings", &json!({ "model": M::NAME, "input": text }))
+        .await?;
 
     Ok(openai::first(res.data, "data")?.embedding)
 }
@@ -105,6 +97,7 @@ mod test {
     use tokio::{sync::Semaphore, time::Instant};
 
     use super::{EmbedResponse, Model, TextEmbedding3Small, embed};
+    use crate::OpenAiClient;
 
     struct Tiny;
     impl Model for Tiny {
@@ -135,10 +128,9 @@ mod test {
     #[tokio::test]
     #[ignore]
     async fn embed_returns_1536_dims() {
-        let key = std::env::var("OPENAI_API_KEY").expect("set OPENAI_API_KEY");
-        let client = reqwest::Client::new();
+        let client = OpenAiClient::from_env().expect("set OPENAI_API_KEY");
         let t0 = Instant::now();
-        let v = embed::<TextEmbedding3Small>(&client, &key, "hello")
+        let v = embed::<TextEmbedding3Small>(&client, "hello")
             .await
             .unwrap();
         let w = t0.elapsed().as_millis();
@@ -149,12 +141,11 @@ mod test {
     #[tokio::test]
     #[ignore]
     async fn embed_latency_measurement() {
-        let key = std::env::var("OPENAI_API_KEY").expect("set OPENAI_API_KEY");
-        let client = reqwest::Client::new(); // created once, reused
+        let client = OpenAiClient::from_env().expect("set OPENAI_API_KEY");
         let mut ws = Vec::new();
         for i in 0..26 {
             let t0 = Instant::now();
-            embed::<TextEmbedding3Small>(&client, &key, "hello world")
+            embed::<TextEmbedding3Small>(&client, "hello world")
                 .await
                 .unwrap();
             let w = t0.elapsed();
@@ -173,8 +164,7 @@ mod test {
     #[tokio::test]
     #[ignore]
     async fn embed_latency_semaphore_measurement() {
-        let key = std::env::var("OPENAI_API_KEY").expect("set OPENAI_API_KEY");
-        let client = reqwest::Client::new(); // created once, reused
+        let client = OpenAiClient::from_env().expect("set OPENAI_API_KEY");
         let start = Instant::now();
 
         const N: usize = 26;
@@ -184,11 +174,10 @@ mod test {
         for i in 0..26 {
             let sem = Arc::clone(&sem);
             let client = client.clone();
-            let key = key.clone();
             tasks.spawn(async move {
                 let _permit = sem.acquire_owned().await.unwrap();
                 let t0 = Instant::now();
-                embed::<TextEmbedding3Small>(&client, &key, "hello world")
+                embed::<TextEmbedding3Small>(&client, "hello world")
                     .await
                     .unwrap();
                 let w = t0.elapsed();

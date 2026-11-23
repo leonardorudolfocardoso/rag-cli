@@ -41,13 +41,13 @@ exponential backoff. Nothing is cached, so every run embeds the notes again.
 The same pipeline is available from the crate:
 
 ```rust
-let rag = rag_cli::Rag::ingest(&["notes/backpressure.md".into()]).await?;
+let rag: rag_cli::Rag = rag_cli::Rag::ingest(&["notes/backpressure.md".into()]).await?;
 let hits = rag.retrieve("What is backpressure?", 3).await?;
 let answer = rag.ask("What is backpressure?", 3).await?;
 println!("{}\nfrom: {:?} ({} hits)", answer.text, answer.sources(), hits.len());
 ```
 
-Use `Rag::ingest_with` to pick a chunk size other than `CHUNK_SIZE` (1500).
+Use `Rag::ingest_with` to pick a chunk size other than `Rag::DEFAULT_CHUNK_SIZE` (1500).
 
 ## Tests
 
