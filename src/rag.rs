@@ -7,7 +7,7 @@ use tokio::{sync::Semaphore, task::JoinSet};
 
 use crate::{
     Chat, Chunk, Error, Model, OpenAiClient, SYSTEM, TextEmbedding3Small, VectorStore, build,
-    chunks, embed,
+    chunk_markdown, embed,
 };
 
 /// Embedded docs, ready to answer questions about them.
@@ -123,7 +123,7 @@ async fn embed_chunks<M: Model + 'static>(
 
     for (path, text) in docs {
         let source: Arc<Path> = path.as_path().into();
-        for text in chunks(text, chunk_size) {
+        for text in chunk_markdown(text, chunk_size) {
             let chunk = Chunk {
                 source: Arc::clone(&source),
                 text: text.to_owned(),

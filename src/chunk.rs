@@ -7,49 +7,63 @@ pub struct Chunk {
     pub text: String,
 }
 
-/// Splits Markdown into chunks of at most `size` chars, following its structure.
+/// Splits Markdown into chunks of at most `max_chars` chars, following its structure.
 ///
 /// A heading always starts a new chunk, and paragraphs are packed together until
-/// the next one would overflow `size`. Fenced code is never split at its blank lines.
-/// Only a single block longer than `size` gets cut mid-text.
+/// the next one would overflow `max_chars`. Fenced code is never split at its blank lines.
+/// Only a single block longer than `max_chars` gets cut mid-text.
 ///
 /// # Panics
-/// If `size` is 0.
-pub fn chunks(text: &str, size: usize) -> Vec<&str> {
-    assert!(size > 0, "chunk size must be at least 1");
-    let len = |r: &Range<usize>| text[r.clone()].chars().count();
+/// If `max_chars` is 0.
+pub fn chunk_markdown(markdown: &str, max_chars: usize) -> Vec<&str> {
+    assert!(max_chars > 0, "max_chars must be at least 1");
+    let len = |r: &Range<usize>| markdown[r.clone()].chars().count();
 
     let mut out = Vec::new();
-    let mut current: Option<Range<usize>> = None;
+    let mut current: Option<(Range<usize>, bool)> = None;
 
-    for Block { range, heading } in blocks(text) {
-        if len(&range) > size {
-            out.extend(current.take().map(|c| &text[c]));
-            out.extend(split_chars(&text[range], size));
+    for block in blocks(markdown) {
+        let heading = block.heading;
+        let heading_only = block.heading_only(markdown);
+        let range = block.range;
+
+        if len(&range) > max_chars {
+            out.extend(current.take().map(|(c, _)| &markdown[c]));
+            out.extend(split_chars(&markdown[range], max_chars));
             continue;
         }
 
         current = Some(match current {
-            None => range,
-            Some(c) if heading => {
-                out.push(&text[c]);
-                range
+            None => (range, heading_only),
+            // Don't flush a heading-only prefix (e.g. `# Doc\n\n## Section`) into an orphan chunk.
+            Some((c, false)) if heading => {
+                out.push(&markdown[c]);
+                (range, heading_only)
             }
-            Some(c) if len(&(c.start..range.end)) <= size => c.start..range.end,
-            Some(c) => {
-                out.push(&text[c]);
-                range
+            Some((c, cur_heading_only)) if len(&(c.start..range.end)) <= max_chars => {
+                (c.start..range.end, cur_heading_only && heading_only)
+            }
+            Some((c, _)) => {
+                out.push(&markdown[c]);
+                (range, heading_only)
             }
         });
     }
 
-    out.extend(current.map(|c| &text[c]));
+    out.extend(current.map(|(c, _)| &markdown[c]));
     out
 }
 
 struct Block {
     range: Range<usize>,
     heading: bool,
+}
+
+impl Block {
+    /// True when the block is a standalone heading line with no body lines attached.
+    fn heading_only(&self, text: &str) -> bool {
+        self.heading && text[self.range.clone()].lines().take(2).count() == 1
+    }
 }
 
 /// Byte ranges of the Markdown blocks in `text`: paragraphs separated by blank
@@ -91,8 +105,13 @@ fn blocks(text: &str) -> Vec<Block> {
     blocks
 }
 
-/// `# Title` through `###### Title`, but not `#hashtag`.
+/// `# Title` through `###### Title`, including bulleted Logseq headings (`- ## Title`),
+/// but not `#hashtag`.
 fn is_heading(line: &str) -> bool {
+    let line = line
+        .strip_prefix("- ")
+        .or_else(|| line.strip_prefix("* "))
+        .map_or(line, str::trim_start);
     let hashes = line.len() - line.trim_start_matches('#').len();
     (1..=6).contains(&hashes) && (line.len() == hashes || line[hashes..].starts_with([' ', '\t']))
 }
@@ -119,31 +138,43 @@ fn split_chars(text: &str, size: usize) -> impl Iterator<Item = &str> {
 
 #[cfg(test)]
 mod test {
-    use super::{blocks, chunks};
+    use super::{blocks, chunk_markdown};
 
     #[test]
     fn long_paragraph_is_cut_on_char_boundaries() {
-        let v = chunks("ação é ótima", 4);
+        let v = chunk_markdown("ação é ótima", 4);
         assert_eq!(v, ["ação", " é ó", "tima"]); // 4 chars each, never cut inside "ç"
         assert_eq!(v.concat(), "ação é ótima"); // nothing lost
-        assert!(chunks("", 4).is_empty());
+        assert!(chunk_markdown("", 4).is_empty());
     }
 
     #[test]
     fn headings_start_a_new_chunk() {
-        let v = chunks("# A\nalpha\n\n# B\nbeta\n", 100);
+        let v = chunk_markdown("# A\nalpha\n\n# B\nbeta\n", 100);
         assert_eq!(v, ["# A\nalpha\n", "# B\nbeta\n"]);
     }
 
     #[test]
+    fn logseq_bullet_headings_start_a_new_chunk() {
+        let v = chunk_markdown("- ## A\n\t- alpha\n- ## B\n\t- beta\n", 100);
+        assert_eq!(v, ["- ## A\n\t- alpha\n", "- ## B\n\t- beta\n"]);
+    }
+
+    #[test]
+    fn consecutive_headings_do_not_create_orphan_chunk() {
+        let v = chunk_markdown("# Doc\n\n## First\n\nalpha\n\n## Second\n\nbeta\n", 100);
+        assert_eq!(v, ["# Doc\n\n## First\n\nalpha\n", "## Second\n\nbeta\n"]);
+    }
+
+    #[test]
     fn hashtag_is_not_a_heading() {
-        let v = chunks("intro\n#tag here\n", 100);
+        let v = chunk_markdown("intro\n#tag here\n", 100);
         assert_eq!(v, ["intro\n#tag here\n"]);
     }
 
     #[test]
     fn packs_paragraphs_up_to_size() {
-        let v = chunks("aa\n\nbb\n\ncc", 7);
+        let v = chunk_markdown("aa\n\nbb\n\ncc", 7);
         assert_eq!(v, ["aa\n\nbb\n", "cc"]);
     }
 
@@ -159,7 +190,7 @@ mod test {
         let text = "# Title\nintro line\n\npara one is here\n\n## Sub\n\
                     a much longer paragraph that will not fit in one go\n\nend";
         for size in 1..40 {
-            for c in chunks(text, size) {
+            for c in chunk_markdown(text, size) {
                 assert!(c.chars().count() <= size, "size {size}: {c:?}");
             }
         }

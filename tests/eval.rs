@@ -9,7 +9,7 @@ use std::{
     path::PathBuf,
 };
 
-use rag_cli::{Hit, Rag, chunks};
+use rag_cli::{Hit, Rag, chunk_markdown};
 use serde::Deserialize;
 
 const K: usize = 3;
@@ -129,7 +129,7 @@ fn eval_cases_match_fixture_chunks() {
     let mut chunk_index: Vec<(PathBuf, String)> = Vec::new();
     for path in &files {
         let text = std::fs::read_to_string(path).unwrap();
-        for c in chunks(&text, Rag::DEFAULT_CHUNK_SIZE) {
+        for c in chunk_markdown(&text, Rag::DEFAULT_CHUNK_SIZE) {
             chunk_index.push((path.clone(), c.to_lowercase()));
         }
     }

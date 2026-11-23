@@ -83,12 +83,12 @@ passing these tests is a regression guard rather than full proof of quality:
   word, and wrong or missing `[n]` citations, while valid paraphrases can fail.
   Catching groundedness and citation errors requires a semantic judge (e.g.
   LLM-as-a-judge) on top of the retrieved chunks.
-- **Synthetic fixtures are cleaner than messy real notes.** Most of the added
-  fixtures use tidy standard Markdown headings (`## ...`), whereas the two
-  Logseq-style notes (`RAG and Agents.md` and `queues and workers.md`) use
-  bulleted headings (`- ## ...`) that `chunk::chunks` does not split on yet,
-  falling back to raw 1500-char mid-word cuts.
-- **Scale, variance and operational bounds.** ~70 chunks and 28 questions are
+- **Synthetic fixtures are cleaner than messy real notes.** Most fixtures use
+  short, well-structured Markdown or Logseq sections that each fit under 1500
+  chars, so long unheaded prose walls, messy tables, and mid-section splits are
+  barely exercised. Subsections also still lose their parent `# Title` context
+  once split.
+- **Scale, variance and operational bounds.** ~100 chunks and 28 questions are
   enough to see category-level trends, not to characterize behavior across
   thousands of documents. Hosted LLMs are not strictly deterministic even at
   temperature 0, each case runs once, and latency/cost are not asserted.
