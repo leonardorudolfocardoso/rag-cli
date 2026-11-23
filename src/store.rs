@@ -14,6 +14,14 @@ impl<E: Model, T> VectorStore<E, T> {
         self.items.push((item, vec))
     }
 
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
     pub fn top_k(&self, q: &Embedding<E>, k: usize) -> Vec<(f32, &T)> {
         // score all + sort + truncate
         let mut scored: Vec<(f32, &T)> = Vec::with_capacity(self.items.len());

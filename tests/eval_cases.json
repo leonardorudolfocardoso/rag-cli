@@ -1,0 +1,337 @@
+[
+  {
+    "id": "direct_normalise_ingest",
+    "category": "direct",
+    "q": "Why should vectors be normalised when they're stored?",
+    "evidence": [
+      {
+        "source": "RAG and Agents.md",
+        "snippet": "trade-off is paid once at ingestion"
+      }
+    ],
+    "keywords": ["once"]
+  },
+  {
+    "id": "direct_backpressure_failure",
+    "category": "direct",
+    "q": "What goes wrong when data arrives faster than the consumer can process it, with nothing slowing the sender?",
+    "evidence": [
+      {
+        "source": "backpressure.md",
+        "snippet": "memmory explodes"
+      }
+    ],
+    "keywords": ["memory", "latency"]
+  },
+  {
+    "id": "direct_rag_wrong_answer",
+    "category": "direct",
+    "q": "My RAG gave a wrong answer even though the right chunk was retrieved. What should I fix?",
+    "evidence": [
+      {
+        "source": "RAG and Agents.md",
+        "snippet": "fix the prompt"
+      }
+    ],
+    "keywords": ["prompt"]
+  },
+  {
+    "id": "direct_postgres_brin",
+    "category": "direct",
+    "q": "When is a BRIN index a good choice in PostgreSQL?",
+    "evidence": [
+      {
+        "source": "postgres indexes.md",
+        "snippet": "insertion order"
+      }
+    ],
+    "keywords": ["insertion"]
+  },
+  {
+    "id": "direct_sqlite_wal",
+    "category": "direct",
+    "q": "Why does SQLite WAL mode improve concurrency?",
+    "evidence": [
+      {
+        "source": "sqlite internals.md",
+        "snippet": "concurrent readers alongside a single writer"
+      }
+    ],
+    "keywords": ["concurrent", "reader"]
+  },
+  {
+    "id": "direct_http_vary",
+    "category": "direct",
+    "q": "Why is putting `Vary: User-Agent` on a cached HTTP response usually a mistake?",
+    "evidence": [
+      {
+        "source": "http caching.md",
+        "snippet": "fragment the cache"
+      }
+    ],
+    "keywords": ["fragment"]
+  },
+  {
+    "id": "para_thundering_herd",
+    "category": "paraphrase",
+    "q": "What happens when a popular cached entry expires and hundreds of requests hit the database at the same time, and how do you stop it?",
+    "evidence": [
+      {
+        "source": "http caching.md",
+        "snippet": "request coalescing (singleflight)"
+      }
+    ],
+    "keywords": ["coalescing"]
+  },
+  {
+    "id": "para_starving_runtime",
+    "category": "paraphrase",
+    "q": "Why shouldn't you run heavy synchronous disk reads directly inside a Tokio async task, and what should you use instead?",
+    "evidence": [
+      {
+        "source": "rust async.md",
+        "snippet": "tokio::task::spawn_blocking"
+      }
+    ],
+    "keywords": ["block", "spawn_blocking"]
+  },
+  {
+    "id": "para_retry_amplification",
+    "category": "paraphrase",
+    "q": "If three microservices in a chain each retry failed calls three times, why can that take down the bottom service?",
+    "evidence": [
+      {
+        "source": "distributed retries.md",
+        "snippet": "27 downstream attempts"
+      }
+    ],
+    "keywords": ["27"]
+  },
+  {
+    "id": "para_avg_p99",
+    "category": "paraphrase",
+    "q": "Can I compute a fleet-wide 99th percentile latency by averaging the p99 reported by each server?",
+    "evidence": [
+      {
+        "source": "observability.md",
+        "snippet": "averaging percentiles is mathematically wrong"
+      }
+    ],
+    "keywords": ["histogram"]
+  },
+  {
+    "id": "para_dense_blind_spots",
+    "category": "paraphrase",
+    "q": "What kinds of queries trip up dense vector retrieval even though it handles synonyms well?",
+    "evidence": [
+      {
+        "source": "search and ranking.md",
+        "snippet": "bi-encoder embeddings frequently struggle with exact matches"
+      }
+    ],
+    "keywords": ["exact", "negation"]
+  },
+  {
+    "id": "para_outbox_consistency",
+    "category": "paraphrase",
+    "q": "How can a service update its database and publish a queue event without the two getting out of sync if the process crashes in between?",
+    "evidence": [
+      {
+        "source": "queues and workers.md",
+        "snippet": "insert an event row into an `outbox` table inside the SAME database transaction"
+      }
+    ],
+    "keywords": ["outbox", "transaction"]
+  },
+  {
+    "id": "cross_node_backpressure",
+    "category": "cross_chunk",
+    "q": "Which Node stream method handles backpressure, and what is its downside when an error occurs?",
+    "evidence": [
+      {
+        "source": "backpressure.md",
+        "snippet": "pipe method"
+      },
+      {
+        "source": "node streams.md",
+        "snippet": "leaves streams open"
+      }
+    ],
+    "keywords": ["pipe", "open"]
+  },
+  {
+    "id": "cross_mcp_lsp",
+    "category": "cross_chunk",
+    "q": "What structural integration problem do both MCP and LSP solve, and which two sides does each protocol connect?",
+    "evidence": [
+      {
+        "source": "RAG and Agents.md",
+        "snippet": "N apps x M tools"
+      },
+      {
+        "source": "language server protocol.md",
+        "snippet": "N editors x M languages"
+      }
+    ],
+    "keywords": ["host", "editor"]
+  },
+  {
+    "id": "cross_vector_scan_and_norm",
+    "category": "cross_chunk",
+    "q": "Up to roughly how many vectors is an exact flat scan fine, and why does normalising vectors at ingest speed up cosine search?",
+    "evidence": [
+      {
+        "source": "vector databases.md",
+        "snippet": "fine up to ~100k"
+      },
+      {
+        "source": "RAG and Agents.md",
+        "snippet": "trade-off is paid once at ingestion"
+      }
+    ],
+    "keywords": ["100k", "once"]
+  },
+  {
+    "id": "cross_caipora_socket_and_destructive",
+    "category": "cross_chunk",
+    "q": "What Unix socket does Caipora listen on, and what is required before it allows a destructive tool call?",
+    "evidence": [
+      {
+        "source": "project caipora.md",
+        "snippet": "/run/caipora/gw.sock"
+      },
+      {
+        "source": "project caipora.md",
+        "snippet": "sentinel"
+      }
+    ],
+    "keywords": ["gw.sock", "sentinel", "90"]
+  },
+  {
+    "id": "cross_marlin_schedule_and_rollback",
+    "category": "cross_chunk",
+    "q": "At what time does Marlin run its nightly indexing job, and how do you roll back a bad snapshot without re-embedding?",
+    "evidence": [
+      {
+        "source": "project marlin.md",
+        "snippet": "02:30 UTC"
+      },
+      {
+        "source": "project marlin.md",
+        "snippet": "CURRENT"
+      }
+    ],
+    "keywords": ["02:30", "current"]
+  },
+  {
+    "id": "cross_pg_isolation_and_pooler",
+    "category": "cross_chunk",
+    "q": "What is PostgreSQL's default transaction isolation level, and what caveat applies to prepared statements in PgBouncer transaction pooling mode?",
+    "evidence": [
+      {
+        "source": "postgres transactions.md",
+        "snippet": "Read Committed"
+      },
+      {
+        "source": "postgres transactions.md",
+        "snippet": "prepared statements"
+      }
+    ],
+    "keywords": ["read committed", "transaction"]
+  },
+  {
+    "id": "private_caipora_mcp",
+    "category": "private",
+    "q": "Where does caipora sit in the MCP picture?",
+    "evidence": [
+      {
+        "source": "RAG and Agents.md",
+        "snippet": "caipora sits in the middle"
+      }
+    ],
+    "keywords": ["host", "server"]
+  },
+  {
+    "id": "private_caipora_metrics",
+    "category": "private",
+    "q": "On which Unix socket and admin metrics port does the Caipora daemon listen?",
+    "evidence": [
+      {
+        "source": "project caipora.md",
+        "snippet": "9471"
+      }
+    ],
+    "keywords": ["/run/caipora/gw.sock", "9471"]
+  },
+  {
+    "id": "private_caipora_audit",
+    "category": "private",
+    "q": "Where does Caipora write its audit log, and which hash algorithm does it use on sanitized payloads?",
+    "evidence": [
+      {
+        "source": "project caipora.md",
+        "snippet": "BLAKE3"
+      }
+    ],
+    "keywords": ["audit.jsonl", "blake3"]
+  },
+  {
+    "id": "private_marlin_pipeline",
+    "category": "private",
+    "q": "How large are Marlin's Markdown chunks, and how many concurrent OpenAI workers does it allow?",
+    "evidence": [
+      {
+        "source": "project marlin.md",
+        "snippet": "1200-character"
+      }
+    ],
+    "keywords": ["1200", "8"]
+  },
+  {
+    "id": "private_marlin_limits",
+    "category": "private",
+    "q": "What file size limit does Marlin enforce, and what happened to PDF extraction?",
+    "evidence": [
+      {
+        "source": "project marlin.md",
+        "snippet": "2 MiB"
+      }
+    ],
+    "keywords": ["2 mib", "v2"]
+  },
+  {
+    "id": "unans_pg_port",
+    "category": "unanswerable",
+    "q": "What is PostgreSQL's default port?",
+    "evidence": [],
+    "keywords": ["don't know"]
+  },
+  {
+    "id": "unans_redis_eviction",
+    "category": "unanswerable",
+    "q": "What is Redis's default memory eviction policy?",
+    "evidence": [],
+    "keywords": ["don't know"]
+  },
+  {
+    "id": "unans_caipora_msrv",
+    "category": "unanswerable",
+    "q": "Which minimum Rust version (MSRV) does Caipora require to compile?",
+    "evidence": [],
+    "keywords": ["don't know"]
+  },
+  {
+    "id": "unans_tls_cipher",
+    "category": "unanswerable",
+    "q": "Which exact AEAD cipher suite is mandatory in TLS 1.3 according to the notes?",
+    "evidence": [],
+    "keywords": ["don't know"]
+  },
+  {
+    "id": "unans_marlin_retention",
+    "category": "unanswerable",
+    "q": "For how many days does Marlin retain old S3 snapshots before deleting them?",
+    "evidence": [],
+    "keywords": ["don't know"]
+  }
+]

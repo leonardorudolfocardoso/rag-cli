@@ -41,65 +41,57 @@ exponential backoff. Nothing is cached, so every run embeds the notes again.
 The same pipeline is available from the crate:
 
 ```rust
-let rag = rag_cli::ingest(&["notes/backpressure.md".into()]).await?;
-let answer = rag_cli::ask(&rag, "What is backpressure?", 3).await?;
-println!("{}\nfrom: {:?}", answer.text, answer.sources);
+let rag = rag_cli::Rag::ingest(&["notes/backpressure.md".into()]).await?;
+let hits = rag.retrieve("What is backpressure?", 3).await?;
+let answer = rag.ask("What is backpressure?", 3).await?;
+println!("{}\nfrom: {:?} ({} hits)", answer.text, answer.sources(), hits.len());
 ```
 
-Use `ingest_with` to pick a chunk size other than `CHUNK_SIZE` (1500).
+Use `Rag::ingest_with` to pick a chunk size other than `CHUNK_SIZE` (1500).
 
 ## Tests
 
 ```sh
-cargo test                                          # unit tests, offline
-cargo test --test eval -- --ignored --nocapture     # eval, calls OpenAI
+cargo test                                                        # unit tests, offline
+cargo test --test eval eval_retrieval -- --ignored --nocapture    # retrieval only (embeddings)
+cargo test --test eval eval_e2e -- --ignored --nocapture          # full pipeline (embeddings + chat)
 ```
 
-The eval ingests the notes in `tests/fixtures` and asks six questions: four
-answered by a single note (`RAG and Agents.md` or `backpressure.md`), one whose
-answer spans two chunks (`backpressure.md` and `node streams.md`), and one
-deliberately not covered by the notes. The other fixtures act as distractors
-that share vocabulary with the questions (streams, vectors, protocols,
-PostgreSQL) so retrieval has to rank the right files above near misses. It
-reports:
+The eval ingests the Markdown notes in `tests/fixtures` and runs the cases in
+`tests/eval_cases.json` across five categories: `direct`, `paraphrase`,
+`cross_chunk` (both cross-file and intra-file), `private` (fictional project
+notes not in model pretraining), and `unanswerable` near-misses.
 
-- **recall@3**: whether every expected file was among the top 3 chunks
-- **accuracy**: whether the answer contains the expected keywords
+- **`eval_retrieval`** calls only the embeddings API and measures chunk-level
+  **recall@3** and **MRR** on answerable cases (verifying both the file and an
+  expected evidence snippet inside the returned chunk), while reporting the
+  top-1 cosine score distribution for unanswerable cases separately.
+- **`eval_e2e`** runs the full pipeline and reports chunk-level **recall@3**,
+  **MRR**, keyword **accuracy** on answerable cases, and **abstention** rate on
+  unanswerable cases separately.
 
-It fails unless recall is 6/6 and accuracy at least 5/6. To compare settings,
-change one thing (chunk size, `k`, the prompt), re-run and compare the scores.
+To compare settings, change one thing (chunk size, `k`, chunker, prompt),
+re-run `eval_retrieval` or `eval_e2e`, and compare the breakdown by category.
 
-### What the eval does not prove
+### What the eval still does not prove
 
-Passing 6/6 here is a sanity check against regressions, not proof that the
-pipeline works well in general:
+Even with a larger corpus, chunk-level recall, MRR and separated abstention,
+passing these tests is a regression guard rather than full proof of quality:
 
-- **Corpus and sample size are tiny.** The seven fixtures split into only 11
-  chunks at the default chunk size, so `k = 3` hands the model ~27% of the
-  entire index on every question. Six hand-picked questions have high variance
-  and say nothing about retrieval quality across hundreds or thousands of
-  chunks.
-- **Recall is file-level and generous.** `Answer.sources` only tracks file
-  paths, not which chunk inside a file was returned — retrieving the wrong
-  chunk of `RAG and Agents.md` (even its two-line `tags::` header) still counts
-  as `R✓`. The unanswerable case also gets an automatic `R✓` because it checks
-  no sources, and `recall@3` ignores ranking order (rank 1 and rank 3 score the
-  same).
-- **Keywords do not measure faithfulness or correctness.** Substring checks miss
-  negations, hallucinations tacked onto a matching word, and wrong or missing
-  `[n]` citations, while valid paraphrases fail. Except for private notes like
-  `caipora`, `gpt-4o-mini` already knows most of these topics from pretraining,
-  so a keyword hit does not prove the answer came from the retrieved context.
-- **Heading-based chunking is barely exercised by the fixtures.** All fixture
-  notes use Logseq-style bulleted headings (`- ## ...`) with no blank lines
-  between sections, which `chunk::chunks` does not treat as headings. As a
-  result, six fixtures are a single chunk each and `RAG and Agents.md` falls
-  back to raw 1500-char cuts mid-word. Passing the eval does not validate
-  Markdown-structure chunking on real long notes or intra-document boundaries.
-- **No generalization or operational bounds.** The questions were written
-  looking at the fixtures, run once (hosted LLMs are not strictly deterministic
-  even at temperature 0), and check nothing about latency, token cost, or
-  vocabulary mismatch between a user's phrasing and their notes.
+- **Keywords do not measure faithfulness or citation accuracy.** Substring
+  checks still miss negations, extra unsupported claims tacked onto a matching
+  word, and wrong or missing `[n]` citations, while valid paraphrases can fail.
+  Catching groundedness and citation errors requires a semantic judge (e.g.
+  LLM-as-a-judge) on top of the retrieved chunks.
+- **Synthetic fixtures are cleaner than messy real notes.** Most of the added
+  fixtures use tidy standard Markdown headings (`## ...`), whereas the two
+  Logseq-style notes (`RAG and Agents.md` and `queues and workers.md`) use
+  bulleted headings (`- ## ...`) that `chunk::chunks` does not split on yet,
+  falling back to raw 1500-char mid-word cuts.
+- **Scale, variance and operational bounds.** ~70 chunks and 28 questions are
+  enough to see category-level trends, not to characterize behavior across
+  thousands of documents. Hosted LLMs are not strictly deterministic even at
+  temperature 0, each case runs once, and latency/cost are not asserted.
 
 Other API-calling tests (latency measurements for embed and chat) are also
 `#[ignore]`d and run with `cargo test -- --ignored`.

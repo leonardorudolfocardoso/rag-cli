@@ -1,5 +1,5 @@
 use clap::Parser;
-use rag_cli::{ask, ingest_with};
+use rag_cli::Rag;
 use std::{path::PathBuf, process::ExitCode};
 
 /// Answer questions about Markdown notes.
@@ -29,9 +29,9 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         k,
         chunk_size,
     } = args;
-    let rag = ingest_with(&files, chunk_size.try_into()?).await?;
+    let rag = Rag::ingest_with(&files, chunk_size.try_into()?).await?;
 
-    println!("{}", ask(&rag, &question, k).await?.text);
+    println!("{}", rag.ask(&question, k).await?.text);
     Ok(())
 }
 

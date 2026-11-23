@@ -1,0 +1,24 @@
+tags:: backend, messaging, study
+
+- ## Delivery guarantees
+	- at-most-once: fire and forget, ack before processing, messages can be lost on crash
+	- at-least-once: ack only after processing succeeds, crashes cause redelivery so consumers MUST be idempotent
+	- why "exactly-once" is misleading in distributed queues: network partitions mean delivery itself is at-least-once; you achieve effectively-once effects by pairing at-least-once delivery with idempotent consumers or deduplication tables
+- ## Visibility timeout and heartbeats
+	- when a worker pulls a message (e.g. SQS), the broker hides it from other consumers for a visibility timeout instead of deleting it
+	- if the worker crashes before deleting/acking, the timeout expires and another worker receives the message
+	- for slow jobs, the worker must extend the lease with periodic heartbeats; setting a huge static timeout delays crash recovery
+	- poison messages that fail repeatedly are moved to a Dead Letter Queue (DLQ) once receive count exceeds `maxReceiveCount`, preventing infinite retry loops from blocking healthy work
+- ## Competing consumers and ordering
+	- scaling a queue horizontally with multiple workers breaks strict global FIFO ordering because messages finish at different speeds
+	- to preserve order per entity (e.g. per account or order ID), partition the stream by entity key so all events for one key go to a single consumer at a time
+	- downside of strict per-key ordering: one slow or failing message causes head-of-line blocking for every subsequent event on that same partition
+- ## Transactional outbox
+	- problem: updating a Postgres table and publishing to Kafka/SQS are two separate systems; if the process crashes between the DB commit and the broker publish, downstream consumers never hear about the change (dual-write bug)
+	- solution: insert an event row into an `outbox` table inside the SAME database transaction as the domain write
+	- a background relay (or Debezium CDC reading the WAL) polls committed outbox rows, publishes them to the message broker, and marks them sent
+	- consumers still need idempotency because the relay can crash after publishing to the broker and before marking the outbox row as published
+- ## Backpressure in worker pools
+	- prefetch count controls how many unacked messages a broker pushes to a worker at once
+	- setting prefetch too high (or unlimited) lets one slow worker hoard messages in memory while idle workers starve and risks OOM
+	- tune prefetch to match the worker's actual concurrency so unprocessed work stays safely in the broker until a worker has capacity
