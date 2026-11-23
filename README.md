@@ -55,17 +55,51 @@ cargo test                                          # unit tests, offline
 cargo test --test eval -- --ignored --nocapture     # eval, calls OpenAI
 ```
 
-The eval ingests the notes in `tests/fixtures` and asks five questions, one of
-them deliberately not covered by the notes. Only `RAG and Agents.md` and
-`backpressure.md` hold answers; the other fixtures are distractors that share
-vocabulary with the questions (streams, vectors, protocols, PostgreSQL) so
-retrieval has to rank the right file above near misses. It reports:
+The eval ingests the notes in `tests/fixtures` and asks six questions: four
+answered by a single note (`RAG and Agents.md` or `backpressure.md`), one whose
+answer spans two chunks (`backpressure.md` and `node streams.md`), and one
+deliberately not covered by the notes. The other fixtures act as distractors
+that share vocabulary with the questions (streams, vectors, protocols,
+PostgreSQL) so retrieval has to rank the right files above near misses. It
+reports:
 
-- **recall@3**: whether the file holding the answer was among the top 3 chunks
+- **recall@3**: whether every expected file was among the top 3 chunks
 - **accuracy**: whether the answer contains the expected keywords
 
-It fails unless recall is 5/5 and accuracy at least 4/5. To compare settings,
+It fails unless recall is 6/6 and accuracy at least 5/6. To compare settings,
 change one thing (chunk size, `k`, the prompt), re-run and compare the scores.
+
+### What the eval does not prove
+
+Passing 6/6 here is a sanity check against regressions, not proof that the
+pipeline works well in general:
+
+- **Corpus and sample size are tiny.** The seven fixtures split into only 11
+  chunks at the default chunk size, so `k = 3` hands the model ~27% of the
+  entire index on every question. Six hand-picked questions have high variance
+  and say nothing about retrieval quality across hundreds or thousands of
+  chunks.
+- **Recall is file-level and generous.** `Answer.sources` only tracks file
+  paths, not which chunk inside a file was returned — retrieving the wrong
+  chunk of `RAG and Agents.md` (even its two-line `tags::` header) still counts
+  as `R✓`. The unanswerable case also gets an automatic `R✓` because it checks
+  no sources, and `recall@3` ignores ranking order (rank 1 and rank 3 score the
+  same).
+- **Keywords do not measure faithfulness or correctness.** Substring checks miss
+  negations, hallucinations tacked onto a matching word, and wrong or missing
+  `[n]` citations, while valid paraphrases fail. Except for private notes like
+  `caipora`, `gpt-4o-mini` already knows most of these topics from pretraining,
+  so a keyword hit does not prove the answer came from the retrieved context.
+- **Heading-based chunking is barely exercised by the fixtures.** All fixture
+  notes use Logseq-style bulleted headings (`- ## ...`) with no blank lines
+  between sections, which `chunk::chunks` does not treat as headings. As a
+  result, six fixtures are a single chunk each and `RAG and Agents.md` falls
+  back to raw 1500-char cuts mid-word. Passing the eval does not validate
+  Markdown-structure chunking on real long notes or intra-document boundaries.
+- **No generalization or operational bounds.** The questions were written
+  looking at the fixtures, run once (hosted LLMs are not strictly deterministic
+  even at temperature 0), and check nothing about latency, token cost, or
+  vocabulary mismatch between a user's phrasing and their notes.
 
 Other API-calling tests (latency measurements for embed and chat) are also
 `#[ignore]`d and run with `cargo test -- --ignored`.
