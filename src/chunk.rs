@@ -4,7 +4,7 @@ use std::{ops::Range, path::Path, sync::Arc};
 #[derive(Debug, Clone)]
 pub struct Chunk {
     pub source: Arc<Path>,
-    pub text: String,
+    pub text: Arc<str>,
 }
 
 /// Splits Markdown into chunks of at most `max_chars` chars, following its structure.

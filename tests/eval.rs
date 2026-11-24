@@ -129,7 +129,7 @@ fn eval_cases_match_fixture_chunks() {
     let mut chunk_index: Vec<(PathBuf, String)> = Vec::new();
     for path in &files {
         let text = std::fs::read_to_string(path).unwrap();
-        for c in chunk_markdown(&text, Rag::DEFAULT_CHUNK_SIZE) {
+        for c in chunk_markdown(&text, Rag::DEFAULT_MAX_CHUNK_CHARS) {
             chunk_index.push((path.clone(), c.to_lowercase()));
         }
     }
@@ -246,7 +246,7 @@ async fn eval_retrieval() {
         "Corpus: {} files, {} chunks (k={K}, chunk_size={})\n",
         files.len(),
         rag.chunk_count(),
-        Rag::DEFAULT_CHUNK_SIZE
+        Rag::DEFAULT_MAX_CHUNK_CHARS
     );
 
     let mut by_cat: BTreeMap<Category, Bucket> = BTreeMap::new();
@@ -338,7 +338,7 @@ async fn eval_e2e() {
         "Corpus: {} files, {} chunks (k={K}, chunk_size={})\n",
         files.len(),
         rag.chunk_count(),
-        Rag::DEFAULT_CHUNK_SIZE
+        Rag::DEFAULT_MAX_CHUNK_CHARS
     );
 
     let mut by_cat: BTreeMap<Category, Bucket> = BTreeMap::new();

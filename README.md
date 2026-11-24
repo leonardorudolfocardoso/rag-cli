@@ -26,8 +26,9 @@ If the answer isn't in the notes, the model is told to say "I don't know".
 1. **Chunk**: each file is split on its Markdown structure. Headings start a new
    chunk, paragraphs are packed up to `--chunk-size`, and fenced code is never
    split. Chunks don't overlap.
-2. **Embed**: every chunk is embedded with `text-embedding-3-small`, at most 4
-   requests at a time, and normalised so cosine similarity is a dot product.
+2. **Embed**: chunks are embedded with `text-embedding-3-small` in batches of
+   32 (at most 4 requests in flight), and normalised so cosine similarity is a
+   dot product.
 3. **Retrieve**: the question is embedded the same way and the `k` most similar
    chunks are picked.
 4. **Answer**: the chunks, numbered and labelled with their file, go to
@@ -47,7 +48,7 @@ let answer = rag.ask("What is backpressure?", 3).await?;
 println!("{}\nfrom: {:?} ({} hits)", answer.text, answer.sources(), hits.len());
 ```
 
-Use `Rag::ingest_with` to pick a chunk size other than `Rag::DEFAULT_CHUNK_SIZE` (1500).
+Use `Rag::ingest_with` to pick a chunk size other than `Rag::DEFAULT_MAX_CHUNK_CHARS` (1500).
 
 ## Tests
 

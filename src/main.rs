@@ -1,6 +1,6 @@
 use clap::Parser;
 use rag_cli::Rag;
-use std::{path::PathBuf, process::ExitCode};
+use std::{num::NonZeroUsize, path::PathBuf, process::ExitCode};
 
 /// Answer questions about Markdown notes.
 #[derive(Parser)]
@@ -17,9 +17,9 @@ struct Args {
     #[arg(short, long, default_value_t = 3)]
     k: usize,
 
-    /// Maximum chunk size, in chars
-    #[arg(short, long, default_value_t = Rag::DEFAULT_CHUNK_SIZE as u64, value_parser = clap::value_parser!(u64).range(1..))]
-    chunk_size: u64,
+    /// Maximum chunk size, in chars [default: 1500]
+    #[arg(short, long)]
+    chunk_size: Option<NonZeroUsize>,
 }
 
 async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
@@ -29,7 +29,10 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         k,
         chunk_size,
     } = args;
-    let rag: Rag = Rag::ingest_with(&files, chunk_size.try_into()?).await?;
+    let rag: Rag = match chunk_size {
+        Some(n) => Rag::ingest_with(&files, n.get()).await?,
+        None => Rag::ingest(&files).await?,
+    };
 
     println!("{}", rag.ask(&question, k).await?.text);
     Ok(())
