@@ -56,6 +56,8 @@ Use `Rag::ingest_with` to pick a chunk size other than `Rag::DEFAULT_MAX_CHUNK_C
 cargo test                                                        # unit tests, offline
 cargo test --test eval eval_retrieval -- --ignored --nocapture    # retrieval only (embeddings)
 cargo test --test eval eval_e2e -- --ignored --nocapture          # full pipeline (embeddings + chat)
+cargo test --test sweep sweep_chunk_size -- --ignored --nocapture # chunk_size curve on plaintext RFCs
+cargo test --test sweep sweep_k -- --ignored --nocapture          # top-k curve on plaintext RFCs
 ```
 
 The eval ingests the Markdown notes in `tests/fixtures` and runs the cases in
@@ -73,6 +75,7 @@ notes not in model pretraining), and `unanswerable` near-misses.
 
 To compare settings, change one thing (chunk size, `k`, chunker, prompt),
 re-run `eval_retrieval` or `eval_e2e`, and compare the breakdown by category.
+Plaintext RFC sweep data and charts live in [experiments/README.md](experiments/README.md).
 
 ### What the eval still does not prove
 

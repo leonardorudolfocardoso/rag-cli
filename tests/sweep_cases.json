@@ -1,0 +1,166 @@
+[
+  {
+    "id": "rfc6585_428_lost_update",
+    "cross_chunk": false,
+    "q": "Which problem is HTTP status code 428 Precondition Required typically used to avoid?",
+    "evidence": [
+      { "source": "rfc6585.txt", "snippet": "lost update" }
+    ]
+  },
+  {
+    "id": "rfc6585_429_retry_after",
+    "cross_chunk": false,
+    "q": "Which HTTP response header may accompany a 429 Too Many Requests response to tell the client how long to wait?",
+    "evidence": [
+      { "source": "rfc6585.txt", "snippet": "Retry-After header" }
+    ]
+  },
+  {
+    "id": "rfc6585_431_single_header",
+    "cross_chunk": false,
+    "q": "When a single oversized HTTP header causes a 431 error, what should the server include in the response?",
+    "evidence": [
+      { "source": "rfc6585.txt", "snippet": "which header field" }
+    ]
+  },
+  {
+    "id": "rfc6585_511_no_login_form",
+    "cross_chunk": false,
+    "q": "Why should a 511 Network Authentication Required response avoid embedding the login interface directly?",
+    "evidence": [
+      { "source": "rfc6585.txt", "snippet": "originally requested URL" }
+    ]
+  },
+  {
+    "id": "rfc6585_511_captive_mac",
+    "cross_chunk": false,
+    "q": "How do captive portal network operators typically identify unknown clients that have not yet authenticated?",
+    "evidence": [
+      { "source": "rfc6585.txt", "snippet": "(MAC) addresses" }
+    ]
+  },
+  {
+    "id": "rfc6750_form_no_get",
+    "cross_chunk": false,
+    "q": "Why can't an OAuth client send a bearer token as a form-encoded body parameter in an HTTP GET request?",
+    "evidence": [
+      { "source": "rfc6750.txt", "snippet": "defined semantics" }
+    ]
+  },
+  {
+    "id": "rfc6750_uri_cache_control",
+    "cross_chunk": false,
+    "q": "Which Cache-Control directives should clients and servers send when a bearer token is transmitted in the URI query string?",
+    "evidence": [
+      { "source": "rfc6750.txt", "snippet": "\"no-store\" option" }
+    ]
+  },
+  {
+    "id": "rfc6750_insufficient_scope",
+    "cross_chunk": false,
+    "q": "Which HTTP status code and OAuth bearer error code should a resource server return when a token lacks enough privileges?",
+    "evidence": [
+      { "source": "rfc6750.txt", "snippet": "higher privileges" }
+    ]
+  },
+  {
+    "id": "rfc6750_token_redirect_audience",
+    "cross_chunk": false,
+    "q": "How can an authorization server defend against token redirect attacks where a token is replayed at a different resource server?",
+    "evidence": [
+      { "source": "rfc6750.txt", "snippet": "intended recipients" }
+    ]
+  },
+  {
+    "id": "rfc6750_short_lived_lifetime",
+    "cross_chunk": false,
+    "q": "What token lifetime does RFC 6750 suggest for short-lived bearer tokens to reduce leak impact?",
+    "evidence": [
+      { "source": "rfc6750.txt", "snippet": "one hour or less" }
+    ]
+  },
+  {
+    "id": "rfc7636_verifier_length",
+    "cross_chunk": false,
+    "q": "What are the minimum and maximum character lengths allowed for a PKCE code_verifier?",
+    "evidence": [
+      { "source": "rfc7636.txt", "snippet": "43 characters" }
+    ]
+  },
+  {
+    "id": "rfc7636_default_method",
+    "cross_chunk": false,
+    "q": "What value does code_challenge_method default to if the client omits it from the authorization request?",
+    "evidence": [
+      { "source": "rfc7636.txt", "snippet": "defaults to \"plain\"" }
+    ]
+  },
+  {
+    "id": "rfc7636_mismatch_error",
+    "cross_chunk": false,
+    "q": "What OAuth error code must the token endpoint return when the PKCE code_verifier does not match the stored code_challenge?",
+    "evidence": [
+      { "source": "rfc7636.txt", "snippet": "\"invalid_grant\"" }
+    ]
+  },
+  {
+    "id": "rfc7636_entropy_bits",
+    "cross_chunk": false,
+    "q": "How many bits of entropy should a PKCE code_verifier contain, and how many random octets produce it?",
+    "evidence": [
+      { "source": "rfc7636.txt", "snippet": "256 bits" }
+    ]
+  },
+  {
+    "id": "rfc7636_no_downgrade",
+    "cross_chunk": false,
+    "q": "Why must a PKCE client never downgrade from S256 to plain after an error?",
+    "evidence": [
+      { "source": "rfc7636.txt", "snippet": "downgrade attack" }
+    ]
+  },
+  {
+    "id": "rfc7636_no_salt",
+    "cross_chunk": false,
+    "q": "Why does PKCE intentionally omit salting when hashing the code_verifier with SHA-256?",
+    "evidence": [
+      { "source": "rfc7636.txt", "snippet": "salting is not used" }
+    ]
+  },
+  {
+    "id": "cross_429_vs_bearer_errors",
+    "cross_chunk": true,
+    "q": "When rate-limiting under attack, what alternative to returning 429 does RFC 6585 suggest, and which HTTP status code does RFC 6750 recommend for an expired bearer token?",
+    "evidence": [
+      { "source": "rfc6585.txt", "snippet": "appropriate to just drop" },
+      { "source": "rfc6750.txt", "snippet": "expired, revoked, malformed" }
+    ]
+  },
+  {
+    "id": "cross_tls_bearer_vs_pkce",
+    "cross_chunk": true,
+    "q": "What risk arises when TLS terminates at a load balancer in front of a bearer resource server, and which BCP supersedes OAuth 2.0's TLS recommendations in RFC 7636?",
+    "evidence": [
+      { "source": "rfc6750.txt", "snippet": "load balancers" },
+      { "source": "rfc7636.txt", "snippet": "[BCP195]" }
+    ]
+  },
+  {
+    "id": "cross_pkce_error_codes",
+    "cross_chunk": true,
+    "q": "Which error code does the authorization endpoint return if code_challenge is missing, versus what the token endpoint returns if code_verifier fails verification?",
+    "evidence": [
+      { "source": "rfc7636.txt", "snippet": "code challenge required" },
+      { "source": "rfc7636.txt", "snippet": "\"invalid_grant\"" }
+    ]
+  },
+  {
+    "id": "cross_bearer_cookies_and_urls",
+    "cross_chunk": true,
+    "q": "Why does RFC 6750 discourage putting bearer tokens in URI query parameters, and why must they not be stored in clear cookies?",
+    "evidence": [
+      { "source": "rfc6750.txt", "snippet": "reserved query parameter" },
+      { "source": "rfc6750.txt", "snippet": "transmitted in the clear" }
+    ]
+  }
+]
