@@ -9,7 +9,7 @@
 
 use std::{collections::HashSet, fmt::Write as _, path::PathBuf, time::Instant};
 
-use rag_cli::{Chunker, Chunks, Document, Hit, Markdown, OpenAiClient, Plain, Rag};
+use rag_cli::{Chunker, Document, Hit, Markdown, OpenAiClient, Plain, Rag, chunk_documents, index};
 use serde::Deserialize;
 
 const CASES_JSON: &str = include_str!("sweep_cases.json");
@@ -172,7 +172,7 @@ async fn sweep_chunk_size() {
         let rag: Rag = Rag::ingest(
             client.clone(),
             client,
-            Chunks::from_documents(&docs, &Plain { max_chars: size }),
+            chunk_documents(&docs, &Plain { max_chars: size }),
         )
         .await
         .unwrap();
@@ -239,17 +239,14 @@ async fn sweep_k() {
 
     let files = plaintext_files();
     let cases = load_cases();
-    let docs = Document::from_files(&files).await.unwrap();
     let client = OpenAiClient::from_env().unwrap();
-    let rag: Rag = Rag::ingest(
+    let rag: Rag = index(
         client.clone(),
         client,
-        Chunks::from_documents(
-            &docs,
-            &Plain {
-                max_chars: chunk_size,
-            },
-        ),
+        &files,
+        &Plain {
+            max_chars: chunk_size,
+        },
     )
     .await
     .unwrap();

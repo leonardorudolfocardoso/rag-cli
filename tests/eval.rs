@@ -9,7 +9,7 @@ use std::{
     path::PathBuf,
 };
 
-use rag_cli::{Chunker, Chunks, Document, Hit, Markdown, OpenAiClient, Rag};
+use rag_cli::{Chunker, Hit, Markdown, OpenAiClient, Rag, index};
 use serde::Deserialize;
 
 const K: usize = 3;
@@ -244,17 +244,14 @@ fn reciprocal_rank_scores_single_and_multi_chunk_cases() {
 async fn eval_retrieval() {
     let files = fixture_files();
     let cases = load_cases();
-    let docs = Document::from_files(&files).await.unwrap();
     let client = OpenAiClient::from_env().unwrap();
-    let rag: Rag = Rag::ingest(
+    let rag: Rag = index(
         client.clone(),
         client,
-        Chunks::from_documents(
-            &docs,
-            &Markdown {
-                max_chars: Rag::DEFAULT_MAX_CHUNK_CHARS,
-            },
-        ),
+        &files,
+        &Markdown {
+            max_chars: Rag::DEFAULT_MAX_CHUNK_CHARS,
+        },
     )
     .await
     .unwrap();
@@ -349,17 +346,14 @@ async fn eval_retrieval() {
 async fn eval_e2e() {
     let files = fixture_files();
     let cases = load_cases();
-    let docs = Document::from_files(&files).await.unwrap();
     let client = OpenAiClient::from_env().unwrap();
-    let rag: Rag = Rag::ingest(
+    let rag: Rag = index(
         client.clone(),
         client,
-        Chunks::from_documents(
-            &docs,
-            &Markdown {
-                max_chars: Rag::DEFAULT_MAX_CHUNK_CHARS,
-            },
-        ),
+        &files,
+        &Markdown {
+            max_chars: Rag::DEFAULT_MAX_CHUNK_CHARS,
+        },
     )
     .await
     .unwrap();

@@ -7,6 +7,33 @@ pub struct Chunk {
     pub text: Arc<str>,
 }
 
+/// Chunks split from one or more documents, in document order.
+#[derive(Debug, Clone, Default)]
+pub struct Chunks(Vec<Chunk>);
+
+impl std::ops::Deref for Chunks {
+    type Target = [Chunk];
+
+    fn deref(&self) -> &[Chunk] {
+        &self.0
+    }
+}
+
+impl FromIterator<Chunk> for Chunks {
+    fn from_iter<I: IntoIterator<Item = Chunk>>(iter: I) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
+impl IntoIterator for Chunks {
+    type Item = Chunk;
+    type IntoIter = std::vec::IntoIter<Chunk>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 /// Splits a document into chunks.
 pub trait Chunker {
     fn chunk<'a>(&self, text: &'a str) -> Vec<&'a str>;

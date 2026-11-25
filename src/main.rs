@@ -1,5 +1,5 @@
 use clap::{Parser, ValueEnum};
-use rag_cli::{Chunks, Document, Markdown, OpenAiClient, Plain, Rag};
+use rag_cli::{Markdown, OpenAiClient, Plain, Rag, index};
 use std::{num::NonZeroUsize, path::PathBuf, process::ExitCode};
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -44,12 +44,12 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     } = args;
     let max_chars = chunk_size.map_or(Rag::DEFAULT_MAX_CHUNK_CHARS, NonZeroUsize::get);
     let client = OpenAiClient::from_env()?;
-    let docs = Document::from_files(&files).await?;
-    let chunks = match chunker {
-        ChunkerKind::Markdown => Chunks::from_documents(&docs, &Markdown { max_chars }),
-        ChunkerKind::Plain => Chunks::from_documents(&docs, &Plain { max_chars }),
+    let rag: Rag = match chunker {
+        ChunkerKind::Markdown => {
+            index(client.clone(), client, &files, &Markdown { max_chars }).await?
+        }
+        ChunkerKind::Plain => index(client.clone(), client, &files, &Plain { max_chars }).await?,
     };
-    let rag: Rag = Rag::ingest(client.clone(), client, chunks).await?;
 
     println!("{}", rag.ask(&question, k).await?.text);
     Ok(())

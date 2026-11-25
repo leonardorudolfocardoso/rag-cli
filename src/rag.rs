@@ -22,7 +22,8 @@ impl Rag {
 
 impl<M: Model + 'static, E: Embedder, C: Chat> Rag<M, E, C> {
     /// Indexes `chunks` by embedding them with `embedder`; `chat` answers questions in
-    /// [`Rag::ask`]. Build chunks with [`Chunks::from_documents`], and an OpenAI client for
+    /// [`Rag::ask`]. Build chunks with [`chunk_documents`](crate::chunk_documents), or use
+    /// [`index`](crate::index) to go straight from files, and an OpenAI client for
     /// both roles with [`OpenAiClient::from_env`].
     pub async fn ingest(embedder: E, chat: C, chunks: Chunks) -> Result<Self, Error> {
         let texts: Vec<&str> = chunks.iter().map(|c| c.text.as_ref()).collect();

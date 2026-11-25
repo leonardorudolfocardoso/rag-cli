@@ -45,15 +45,14 @@ The same pipeline is available from the crate:
 ```rust
 let client = rag_cli::OpenAiClient::from_env()?;
 let chunker = rag_cli::Markdown { max_chars: rag_cli::Rag::DEFAULT_MAX_CHUNK_CHARS };
-let docs = rag_cli::Document::from_files(&["notes/backpressure.md".into()]).await?;
-let chunks = rag_cli::Chunks::from_documents(&docs, &chunker);
-let rag: rag_cli::Rag = rag_cli::Rag::ingest(client.clone(), client, chunks).await?;
+let rag: rag_cli::Rag =
+    rag_cli::index(client.clone(), client, &["notes/backpressure.md".into()], &chunker).await?;
 let hits = rag.retrieve("What is backpressure?", 3).await?;
 let answer = rag.ask("What is backpressure?", 3).await?;
 println!("{}\nfrom: {:?} ({} hits)", answer.text, answer.sources(), hits.len());
 ```
 
-`Document::from_files` reads files, `Chunks::from_documents` splits them with any `Chunker` (`Markdown`, `Plain`), and `Rag::ingest` embeds the chunks; `Rag::DEFAULT_MAX_CHUNK_CHARS` (1100) is the CLI default chunk size.
+`index` runs the whole pipeline. Its steps are also public: `Document::from_files` reads files, `chunk_documents` splits them with any `Chunker` (`Markdown`, `Plain`), and `Rag::ingest` embeds the chunks; `Rag::DEFAULT_MAX_CHUNK_CHARS` (1100) is the CLI default chunk size.
 
 ## Tests
 
