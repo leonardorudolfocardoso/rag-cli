@@ -1,6 +1,14 @@
-use clap::Parser;
-use rag_cli::Rag;
+use clap::{Parser, ValueEnum};
+use rag_cli::{Chunks, Document, Markdown, OpenAiClient, Plain, Rag};
 use std::{num::NonZeroUsize, path::PathBuf, process::ExitCode};
+
+#[derive(Clone, Copy, ValueEnum)]
+enum ChunkerKind {
+    /// Splits on headings, keeps fenced code whole (also Logseq)
+    Markdown,
+    /// Packs paragraphs, no structure
+    Plain,
+}
 
 /// Answer questions about Markdown notes.
 #[derive(Parser)]
@@ -20,6 +28,10 @@ struct Args {
     /// Maximum chunk size, in chars [default: 1100]
     #[arg(short, long)]
     chunk_size: Option<NonZeroUsize>,
+
+    /// How files are split into chunks
+    #[arg(long, value_enum, default_value_t = ChunkerKind::Plain)]
+    chunker: ChunkerKind,
 }
 
 async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
@@ -28,11 +40,16 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         question,
         k,
         chunk_size,
+        chunker,
     } = args;
-    let rag: Rag = match chunk_size {
-        Some(n) => Rag::ingest_with(&files, n.get()).await?,
-        None => Rag::ingest(&files).await?,
+    let max_chars = chunk_size.map_or(Rag::DEFAULT_MAX_CHUNK_CHARS, NonZeroUsize::get);
+    let client = OpenAiClient::from_env()?;
+    let docs = Document::from_files(&files).await?;
+    let chunks = match chunker {
+        ChunkerKind::Markdown => Chunks::from_documents(&docs, &Markdown { max_chars }),
+        ChunkerKind::Plain => Chunks::from_documents(&docs, &Plain { max_chars }),
     };
+    let rag: Rag = Rag::ingest(client.clone(), client, chunks).await?;
 
     println!("{}", rag.ask(&question, k).await?.text);
     Ok(())

@@ -18,6 +18,7 @@ cargo run --release -- --question "What is backpressure?" notes/*.md
 | `-q, --question` | required | The question to answer |
 | `-k, --k` | 5 | How many chunks go into the prompt |
 | `-c, --chunk-size` | 1100 | Maximum chunk size, in chars |
+| `--chunker` | plain | `plain` (paragraphs only) or `markdown` (headings, fenced code) |
 
 If the answer isn't in the notes, the model is told to say "I don't know".
 
@@ -42,13 +43,17 @@ exponential backoff. Nothing is cached, so every run embeds the notes again.
 The same pipeline is available from the crate:
 
 ```rust
-let rag: rag_cli::Rag = rag_cli::Rag::ingest(&["notes/backpressure.md".into()]).await?;
+let client = rag_cli::OpenAiClient::from_env()?;
+let chunker = rag_cli::Markdown { max_chars: rag_cli::Rag::DEFAULT_MAX_CHUNK_CHARS };
+let docs = rag_cli::Document::from_files(&["notes/backpressure.md".into()]).await?;
+let chunks = rag_cli::Chunks::from_documents(&docs, &chunker);
+let rag: rag_cli::Rag = rag_cli::Rag::ingest(client.clone(), client, chunks).await?;
 let hits = rag.retrieve("What is backpressure?", 3).await?;
 let answer = rag.ask("What is backpressure?", 3).await?;
 println!("{}\nfrom: {:?} ({} hits)", answer.text, answer.sources(), hits.len());
 ```
 
-Use `Rag::ingest_with` to pick a chunk size other than `Rag::DEFAULT_MAX_CHUNK_CHARS` (1100).
+`Document::from_files` reads files, `Chunks::from_documents` splits them with any `Chunker` (`Markdown`, `Plain`), and `Rag::ingest` embeds the chunks; `Rag::DEFAULT_MAX_CHUNK_CHARS` (1100) is the CLI default chunk size.
 
 ## Tests
 

@@ -19,5 +19,8 @@ pub use prompt::{SYSTEM, build};
 mod chunk;
 pub use chunk::*;
 
+mod document;
+pub use document::*;
+
 mod rag;
 pub use rag::*;

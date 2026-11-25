@@ -1,8 +1,7 @@
 //! Empirical sweeps of `chunk_size` and `k` over plaintext IETF RFCs in `tests/fixtures_plain`.
 //!
-//! Because RFCs have no Markdown `#` headings, `chunk_markdown` acts as a plain
-//! paragraph-packing chunker up to `chunk_size`, isolating chunk size and `k`
-//! without heading hierarchy confounding the curve.
+//! Chunks come from `Plain`, a paragraph packer with no notion of headings or code,
+//! isolating chunk size and `k` from any structure-aware chunking.
 //!
 //! - Offline self-checks: `cargo test --test sweep`
 //! - Chunk-size sweep:    `cargo test --test sweep sweep_chunk_size -- --ignored --nocapture`
@@ -10,7 +9,7 @@
 
 use std::{collections::HashSet, fmt::Write as _, path::PathBuf, time::Instant};
 
-use rag_cli::{Chunker, Hit, Markdown, Plain, Rag};
+use rag_cli::{Chunker, Chunks, Document, Hit, Markdown, OpenAiClient, Plain, Rag};
 use serde::Deserialize;
 
 const CASES_JSON: &str = include_str!("sweep_cases.json");
@@ -95,7 +94,7 @@ fn sweep_cases_match_plaintext_fixtures() {
     let mut chunk_index: Vec<(PathBuf, String)> = Vec::new();
     for path in &files {
         let text = std::fs::read_to_string(path).unwrap();
-        let chunker = Markdown {
+        let chunker = Plain {
             max_chars: DEFAULT_SWEEP_K_CHUNK_SIZE,
         };
         for c in chunker.chunk(&text) {
@@ -166,9 +165,17 @@ async fn sweep_chunk_size() {
         "chunk_size,k,chunks,single_hits,single_total,single_recall,overall_hits,overall_total,overall_recall,mrr,avg_prompt_chars,ingest_secs\n",
     );
 
+    let docs = Document::from_files(&files).await.unwrap();
     for &size in CHUNK_SIZES {
         let t0 = Instant::now();
-        let rag: Rag = Rag::ingest_with(&files, size).await.unwrap();
+        let client = OpenAiClient::from_env().unwrap();
+        let rag: Rag = Rag::ingest(
+            client.clone(),
+            client,
+            Chunks::from_documents(&docs, &Plain { max_chars: size }),
+        )
+        .await
+        .unwrap();
         let ingest_s = t0.elapsed().as_secs_f32();
 
         let (mut single_total, mut single_hits) = (0usize, 0usize);
@@ -232,7 +239,20 @@ async fn sweep_k() {
 
     let files = plaintext_files();
     let cases = load_cases();
-    let rag: Rag = Rag::ingest_with(&files, chunk_size).await.unwrap();
+    let docs = Document::from_files(&files).await.unwrap();
+    let client = OpenAiClient::from_env().unwrap();
+    let rag: Rag = Rag::ingest(
+        client.clone(),
+        client,
+        Chunks::from_documents(
+            &docs,
+            &Plain {
+                max_chars: chunk_size,
+            },
+        ),
+    )
+    .await
+    .unwrap();
 
     // Embed each query once at `max_k`, then slice in memory for every k.
     let mut retrieved = Vec::with_capacity(cases.len());

@@ -2,7 +2,7 @@
 
 Empirical measurements of `chunk_size` and `k` on 3 complete IETF RFCs ([rfc6585.txt](../tests/fixtures_plain/rfc6585.txt), [rfc6750.txt](../tests/fixtures_plain/rfc6750.txt), [rfc7636.txt](../tests/fixtures_plain/rfc7636.txt) — **95,595 chars total**, 20 questions: 16 single-chunk + 4 cross-chunk), embedded with `text-embedding-3-small`.
 
-Because RFCs have no Markdown `#` headings, `chunk_markdown` packs plain paragraphs up to `chunk_size`, isolating `chunk_size` and `k` without heading hierarchy confounding the curve.
+RFCs are plaintext with no Markdown `#` headings, so the sweeps use the `Plain` chunker, which packs paragraphs up to `chunk_size`, isolating `chunk_size` and `k` from any structure-aware chunking. (`Markdown` produces identical chunks on these files, checked by `plain_chunker_matches_markdown_on_rfcs`.)
 
 Raw data: [chunk_size.csv](chunk_size.csv) · [top_k.csv](top_k.csv) · Plot script: [plot.gp](plot.gp) (`gnuplot experiments/plot.gp`) · Runner: [tests/sweep.rs](../tests/sweep.rs)
 
