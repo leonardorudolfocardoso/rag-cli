@@ -10,7 +10,7 @@
 
 use std::{collections::HashSet, fmt::Write as _, path::PathBuf, time::Instant};
 
-use rag_cli::{Hit, Rag, chunk_markdown};
+use rag_cli::{Chunker, Hit, Markdown, Plain, Rag};
 use serde::Deserialize;
 
 const CASES_JSON: &str = include_str!("sweep_cases.json");
@@ -69,6 +69,22 @@ fn reciprocal_rank(hits: &[Hit], evidence: &[Evidence]) -> Option<f32> {
     (worst_rank > 0).then(|| 1.0 / worst_rank as f32)
 }
 
+/// The earlier sweeps ran `Markdown` on these RFCs; `Plain` must reproduce those chunks.
+#[test]
+fn plain_chunker_matches_markdown_on_rfcs() {
+    for path in plaintext_files() {
+        let text = std::fs::read_to_string(&path).unwrap();
+        for &size in CHUNK_SIZES {
+            assert_eq!(
+                Plain { max_chars: size }.chunk(&text),
+                Markdown { max_chars: size }.chunk(&text),
+                "{} at chunk_size={size}",
+                path.display()
+            );
+        }
+    }
+}
+
 #[test]
 fn sweep_cases_match_plaintext_fixtures() {
     let cases = load_cases();
@@ -79,7 +95,10 @@ fn sweep_cases_match_plaintext_fixtures() {
     let mut chunk_index: Vec<(PathBuf, String)> = Vec::new();
     for path in &files {
         let text = std::fs::read_to_string(path).unwrap();
-        for c in chunk_markdown(&text, DEFAULT_SWEEP_K_CHUNK_SIZE) {
+        let chunker = Markdown {
+            max_chars: DEFAULT_SWEEP_K_CHUNK_SIZE,
+        };
+        for c in chunker.chunk(&text) {
             chunk_index.push((path.clone(), c.to_lowercase()));
         }
     }

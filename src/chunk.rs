@@ -7,22 +7,59 @@ pub struct Chunk {
     pub text: Arc<str>,
 }
 
-/// Splits Markdown into chunks of at most `max_chars` chars, following its structure.
+/// Splits a document into chunks.
+pub trait Chunker {
+    fn chunk<'a>(&self, text: &'a str) -> Vec<&'a str>;
+}
+
+/// Splits Markdown (and Logseq) into chunks of at most `max_chars` chars, following its structure.
 ///
 /// A heading always starts a new chunk, and paragraphs are packed together until
 /// the next one would overflow `max_chars`. Fenced code is never split at its blank lines.
 /// Only a single block longer than `max_chars` gets cut mid-text.
 ///
 /// # Panics
-/// If `max_chars` is 0.
-pub fn chunk_markdown(markdown: &str, max_chars: usize) -> Vec<&str> {
+/// When chunking, if `max_chars` is 0.
+#[derive(Debug, Clone, Copy)]
+pub struct Markdown {
+    pub max_chars: usize,
+}
+
+impl Chunker for Markdown {
+    fn chunk<'a>(&self, text: &'a str) -> Vec<&'a str> {
+        pack(text, blocks(text, is_heading, true), self.max_chars)
+    }
+}
+
+/// Splits unstructured text into chunks of at most `max_chars` chars.
+///
+/// Paragraphs (separated by blank lines) are packed together until the next one would
+/// overflow `max_chars`. There is no notion of headings or code, so it is the baseline
+/// for structure-aware chunkers. Only a single paragraph longer than `max_chars` gets cut mid-text.
+///
+/// # Panics
+/// When chunking, if `max_chars` is 0.
+#[derive(Debug, Clone, Copy)]
+pub struct Plain {
+    pub max_chars: usize,
+}
+
+impl Chunker for Plain {
+    fn chunk<'a>(&self, text: &'a str) -> Vec<&'a str> {
+        pack(text, blocks(text, |_| false, false), self.max_chars)
+    }
+}
+
+/// Packs `blocks` of `markdown` into chunks of at most `max_chars` chars.
+/// A heading block starts a new chunk unless the chunk so far is only headings.
+fn pack(markdown: &str, blocks: Vec<Block>, max_chars: usize) -> Vec<&str> {
     assert!(max_chars > 0, "max_chars must be at least 1");
     let len = |r: &Range<usize>| markdown[r.clone()].chars().count();
 
     let mut out = Vec::new();
     let mut current: Option<(Range<usize>, bool)> = None;
 
-    for block in blocks(markdown) {
+    for block in blocks {
         let heading = block.heading;
         let heading_only = block.heading_only(markdown);
         let range = block.range;
@@ -66,9 +103,9 @@ impl Block {
     }
 }
 
-/// Byte ranges of the Markdown blocks in `text`: paragraphs separated by blank
-/// lines, where a heading line also starts a new block and fenced code stays whole.
-fn blocks(text: &str) -> Vec<Block> {
+/// Byte ranges of the blocks in `text`: paragraphs separated by blank lines, where a
+/// line accepted by `is_heading` also starts a new block and, if `fences`, fenced code stays whole.
+fn blocks(text: &str, is_heading: impl Fn(&str) -> bool, fences: bool) -> Vec<Block> {
     let mut blocks = Vec::new();
     let mut start: Option<(usize, bool)> = None;
     let mut in_fence = false;
@@ -90,7 +127,7 @@ fn blocks(text: &str) -> Vec<Block> {
         if !blank && start.is_none() {
             start = Some((pos, heading));
         }
-        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+        if fences && (trimmed.starts_with("```") || trimmed.starts_with("~~~")) {
             in_fence = !in_fence;
         }
         pos += line.len();
@@ -138,7 +175,15 @@ fn split_chars(text: &str, size: usize) -> impl Iterator<Item = &str> {
 
 #[cfg(test)]
 mod test {
-    use super::{blocks, chunk_markdown};
+    use super::{Chunker, Markdown, Plain, blocks, is_heading};
+
+    fn chunk_markdown(text: &str, max_chars: usize) -> Vec<&str> {
+        Markdown { max_chars }.chunk(text)
+    }
+
+    fn chunk_plain(text: &str, max_chars: usize) -> Vec<&str> {
+        Plain { max_chars }.chunk(text)
+    }
 
     #[test]
     fn long_paragraph_is_cut_on_char_boundaries() {
@@ -181,7 +226,10 @@ mod test {
     #[test]
     fn fenced_code_is_one_block() {
         let text = "```\n# not a heading\n\nx\n```\n\nafter";
-        let b: Vec<&str> = blocks(text).into_iter().map(|b| &text[b.range]).collect();
+        let b: Vec<&str> = blocks(text, is_heading, true)
+            .into_iter()
+            .map(|b| &text[b.range])
+            .collect();
         assert_eq!(b, ["```\n# not a heading\n\nx\n```\n", "after"]);
     }
 
@@ -194,5 +242,20 @@ mod test {
                 assert!(c.chars().count() <= size, "size {size}: {c:?}");
             }
         }
+    }
+
+    #[test]
+    fn plain_ignores_markdown_structure() {
+        let text = "# A\nalpha\n\n# B\nbeta\n";
+        assert_eq!(chunk_plain(text, 100), [text]);
+        assert_eq!(chunk_markdown(text, 100).len(), 2);
+
+        let fenced = "```\nx\n\ny\n```";
+        assert_eq!(chunk_plain(fenced, 6), ["```\nx\n", "y\n```"]);
+    }
+
+    #[test]
+    fn plain_packs_paragraphs_up_to_size() {
+        assert_eq!(chunk_plain("aa\n\nbb\n\ncc", 7), ["aa\n\nbb\n", "cc"]);
     }
 }

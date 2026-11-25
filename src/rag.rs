@@ -4,8 +4,8 @@ use std::{
 };
 
 use crate::{
-    Chat, Chunk, Embedder, Error, Model, OpenAiClient, SYSTEM, TextEmbedding3Small, VectorStore,
-    build, chunk_markdown,
+    Chat, Chunk, Chunker, Embedder, Error, Markdown, Model, OpenAiClient, SYSTEM,
+    TextEmbedding3Small, VectorStore, build,
 };
 
 /// A loaded Markdown document, pairing its source path with its contents.
@@ -27,7 +27,8 @@ impl Document {
 
     /// Splits this document into chunks of at most `max_chars` chars, each tagged with its source.
     pub fn chunks(&self, max_chars: usize) -> Vec<Chunk> {
-        chunk_markdown(&self.text, max_chars)
+        Markdown { max_chars }
+            .chunk(&self.text)
             .into_iter()
             .map(|text| Chunk {
                 source: Arc::clone(&self.source),
