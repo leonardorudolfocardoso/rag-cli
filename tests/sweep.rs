@@ -223,9 +223,9 @@ async fn sweep_chunk_size() {
         .unwrap();
     }
 
-    std::fs::create_dir_all("experiments").unwrap();
-    std::fs::write("experiments/chunk_size.csv", csv).unwrap();
-    println!("\nSaved experiments/chunk_size.csv");
+    std::fs::create_dir_all("experiments/01-chunk-size").unwrap();
+    std::fs::write("experiments/01-chunk-size/chunk_size.csv", csv).unwrap();
+    println!("\nSaved experiments/01-chunk-size/chunk_size.csv");
 }
 
 #[tokio::test]
@@ -321,7 +321,7 @@ async fn sweep_k() {
         .unwrap();
     }
 
-    std::fs::create_dir_all("experiments").unwrap();
-    std::fs::write("experiments/top_k.csv", csv).unwrap();
-    println!("\nSaved experiments/top_k.csv");
+    std::fs::create_dir_all("experiments/02-top-k").unwrap();
+    std::fs::write("experiments/02-top-k/top_k.csv", csv).unwrap();
+    println!("\nSaved experiments/02-top-k/top_k.csv");
 }
