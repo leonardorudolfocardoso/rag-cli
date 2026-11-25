@@ -1,6 +1,6 @@
 # Experiment 2: Top-`k` Curve (fixed `chunk_size = 1100`)
 
-Chunker: `Plain` (paragraph packing, no structure). Measured on the [shared RFC corpus](../README.md) (3 RFCs, 95,595 chars, 20 questions). Data: [top_k.csv](top_k.csv) · Chart: `gnuplot experiments/02-top-k/plot.gp` · Runner: `cargo test --test sweep sweep_k -- --ignored --nocapture` in [tests/sweep.rs](../../tests/sweep.rs)
+Chunker: `Plain` (paragraph packing, no structure). Measured on the [shared RFC corpus](../README.md) (3 RFCs, 95,595 chars, 20 questions); metrics are defined [there](../README.md#metrics). Data: [top_k.csv](top_k.csv) · Chart: `gnuplot experiments/02-top-k/plot.gp` · Runner: `cargo test --test sweep sweep_k -- --ignored --nocapture` in [tests/sweep.rs](../../tests/sweep.rs)
 
 Fixing `chunk_size` at [Experiment 1](../01-chunk-size/README.md)'s MRR winner (`1100` chars) and sweeping `k = 1..=10`:
 

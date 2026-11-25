@@ -1,8 +1,9 @@
 # rag-cli
 
-Answer questions about your Markdown notes from the command line. It embeds the
-notes, finds the chunks closest to the question and asks a chat model to answer
-from them alone, citing the chunks it used.
+Answer questions about your text files (Markdown notes, plaintext, IETF RFCs)
+from the command line. It splits and embeds the files, finds the chunks closest
+to the question and asks a chat model to answer from them alone, citing the
+chunks it used.
 
 ## Usage
 
@@ -10,7 +11,7 @@ Requires Rust (edition 2024) and an OpenAI API key.
 
 ```sh
 export OPENAI_API_KEY=sk-...
-cargo run --release -- --question "What is backpressure?" notes/*.md
+cargo run --release -- --chunker markdown --question "What is backpressure?" notes/*.md
 ```
 
 | Option | Default | Meaning |
@@ -20,13 +21,15 @@ cargo run --release -- --question "What is backpressure?" notes/*.md
 | `-c, --chunk-size` | 1100 | Maximum chunk size, in chars |
 | `--chunker` | plain | `plain` (paragraphs only), `markdown` (headings, fenced code) or `rfc` (IETF RFC sections) |
 
-If the answer isn't in the notes, the model is told to say "I don't know".
+If the answer isn't in the files, the model is told to say "I don't know".
 
 ## How it works
 
-1. **Chunk**: each file is split on its Markdown structure. Headings start a new
-   chunk, paragraphs are packed up to `--chunk-size`, and fenced code is never
-   split. Chunks don't overlap.
+1. **Chunk**: paragraphs are packed into chunks of up to `--chunk-size` chars,
+   and `--chunker` decides where else a chunk must break. `plain` only packs
+   paragraphs; `markdown` also starts a chunk at each `#` heading (including
+   Logseq `- ## ` bullets) and never splits fenced code; `rfc` starts a chunk at
+   each section heading, recognised from the page layout. Chunks don't overlap.
 2. **Embed**: chunks are embedded with `text-embedding-3-small` in batches of
    32 (at most 4 requests in flight), and normalised so cosine similarity is a
    dot product.
@@ -36,7 +39,7 @@ If the answer isn't in the notes, the model is told to say "I don't know".
    `gpt-4o-mini` (temperature 0) with the question.
 
 Rate limits, server errors and timeouts are retried up to 4 times with
-exponential backoff. Nothing is cached, so every run embeds the notes again.
+exponential backoff. Nothing is cached, so every run embeds the files again.
 
 ## Library
 
@@ -62,6 +65,7 @@ cargo test --test eval eval_retrieval -- --ignored --nocapture    # retrieval on
 cargo test --test eval eval_e2e -- --ignored --nocapture          # full pipeline (embeddings + chat)
 cargo test --test sweep sweep_chunk_size -- --ignored --nocapture # chunk_size curve on plaintext RFCs
 cargo test --test sweep sweep_k -- --ignored --nocapture          # top-k curve on plaintext RFCs
+cargo test --test sweep sweep_chunker -- --ignored --nocapture    # Plain vs Rfc chunker on plaintext RFCs
 ```
 
 The eval ingests the Markdown notes in `tests/fixtures` and runs the cases in
@@ -79,7 +83,8 @@ notes not in model pretraining), and `unanswerable` near-misses.
 
 To compare settings, change one thing (chunk size, `k`, chunker, prompt),
 re-run `eval_retrieval` or `eval_e2e`, and compare the breakdown by category.
-Plaintext RFC sweep data and charts live in [experiments/README.md](experiments/README.md).
+Plaintext RFC sweep data and charts live in [experiments/README.md](experiments/README.md),
+which also defines the metrics (recall@k, cross-chunk recall, MRR).
 
 ### What the eval still does not prove
 
@@ -91,10 +96,11 @@ passing these tests is a regression guard rather than full proof of quality:
   word, and wrong or missing `[n]` citations, while valid paraphrases can fail.
   Catching groundedness and citation errors requires a semantic judge (e.g.
   LLM-as-a-judge) on top of the retrieved chunks.
-- **Synthetic fixtures are cleaner than messy real notes.** Most fixtures use
-  short, well-structured Markdown or Logseq sections that each fit under 1500
-  chars, so long unheaded prose walls, messy tables, and mid-section splits are
-  barely exercised. Subsections also still lose their parent `# Title` context
+- **Synthetic fixtures are cleaner than messy real notes.** The fixtures use
+  short, well-structured Markdown or Logseq sections that fit under the 1100-char
+  default chunk size (only two sections in `RAG and Agents.md` exceed it), so
+  long unheaded prose walls, messy tables, and mid-section splits are barely
+  exercised. Subsections also still lose their parent `# Title` context
   once split.
 - **Scale, variance and operational bounds.** ~100 chunks and 28 questions are
   enough to see category-level trends, not to characterize behavior across

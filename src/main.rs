@@ -8,11 +8,11 @@ enum ChunkerKind {
     Markdown,
     /// Packs paragraphs, no structure
     Plain,
-    /// Splits IETF RFC plaintext on its numbered sections
+    /// Splits IETF RFC plaintext on its section headings, found from the layout
     Rfc,
 }
 
-/// Answer questions about Markdown notes.
+/// Answer questions about text files: Markdown notes, plaintext, IETF RFCs.
 #[derive(Parser)]
 struct Args {
     /// Files to ingest (e.g. notes/*.md)
@@ -27,9 +27,9 @@ struct Args {
     #[arg(short, long, default_value_t = Rag::DEFAULT_K)]
     k: usize,
 
-    /// Maximum chunk size, in chars [default: 1100]
-    #[arg(short, long)]
-    chunk_size: Option<NonZeroUsize>,
+    /// Maximum chunk size, in chars
+    #[arg(short, long, default_value_t = NonZeroUsize::new(Rag::DEFAULT_MAX_CHUNK_CHARS).unwrap())]
+    chunk_size: NonZeroUsize,
 
     /// How files are split into chunks
     #[arg(long, value_enum, default_value_t = ChunkerKind::Plain)]
@@ -44,7 +44,7 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         chunk_size,
         chunker,
     } = args;
-    let max_chars = chunk_size.map_or(Rag::DEFAULT_MAX_CHUNK_CHARS, NonZeroUsize::get);
+    let max_chars = chunk_size.get();
     let client = OpenAiClient::from_env()?;
     let rag: Rag = match chunker {
         ChunkerKind::Markdown => {

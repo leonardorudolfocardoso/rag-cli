@@ -1,6 +1,6 @@
 # Experiment 1: Chunk Size Curve (fixed `k = 3`)
 
-Chunker: `Plain` (paragraph packing, no structure). Measured on the [shared RFC corpus](../README.md) (3 RFCs, 95,595 chars, 20 questions). Data: [chunk_size.csv](chunk_size.csv) · Chart: `gnuplot experiments/01-chunk-size/plot.gp` · Runner: `cargo test --test sweep sweep_chunk_size -- --ignored --nocapture` in [tests/sweep.rs](../../tests/sweep.rs)
+Chunker: `Plain` (paragraph packing, no structure). Measured on the [shared RFC corpus](../README.md) (3 RFCs, 95,595 chars, 20 questions); metrics are defined [there](../README.md#metrics). Data: [chunk_size.csv](chunk_size.csv) · Chart: `gnuplot experiments/01-chunk-size/plot.gp` · Runner: `cargo test --test sweep sweep_chunk_size -- --ignored --nocapture` in [tests/sweep.rs](../../tests/sweep.rs)
 
 ![Chunk size sweep](chunk_size.png)
 

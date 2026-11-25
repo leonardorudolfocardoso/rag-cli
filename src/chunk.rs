@@ -47,11 +47,11 @@ pub trait Chunker {
     fn chunk<'a>(&self, text: &'a str) -> Vec<&'a str>;
 }
 
-/// Packs `blocks` of `markdown` into chunks of at most `max_chars` chars.
+/// Packs `blocks` of `text` into chunks of at most `max_chars` chars.
 /// A heading block starts a new chunk unless the chunk so far is only headings.
-fn pack(markdown: &str, blocks: Vec<Block>, max_chars: usize) -> Vec<&str> {
+fn pack(text: &str, blocks: Vec<Block>, max_chars: usize) -> Vec<&str> {
     assert!(max_chars > 0, "max_chars must be at least 1");
-    let len = |r: &Range<usize>| markdown[r.clone()].chars().count();
+    let len = |r: &Range<usize>| text[r.clone()].chars().count();
 
     let mut out = Vec::new();
     let mut current: Option<(Range<usize>, bool)> = None;
@@ -64,8 +64,8 @@ fn pack(markdown: &str, blocks: Vec<Block>, max_chars: usize) -> Vec<&str> {
         } = block;
 
         if len(&range) > max_chars {
-            out.extend(current.take().map(|(c, _)| &markdown[c]));
-            out.extend(split_chars(&markdown[range], max_chars));
+            out.extend(current.take().map(|(c, _)| &text[c]));
+            out.extend(split_chars(&text[range], max_chars));
             continue;
         }
 
@@ -73,20 +73,20 @@ fn pack(markdown: &str, blocks: Vec<Block>, max_chars: usize) -> Vec<&str> {
             None => (range, heading_only),
             // Don't flush a heading-only prefix (e.g. `# Doc\n\n## Section`) into an orphan chunk.
             Some((c, false)) if heading => {
-                out.push(&markdown[c]);
+                out.push(&text[c]);
                 (range, heading_only)
             }
             Some((c, cur_heading_only)) if len(&(c.start..range.end)) <= max_chars => {
                 (c.start..range.end, cur_heading_only && heading_only)
             }
             Some((c, _)) => {
-                out.push(&markdown[c]);
+                out.push(&text[c]);
                 (range, heading_only)
             }
         });
     }
 
-    out.extend(current.map(|(c, _)| &markdown[c]));
+    out.extend(current.map(|(c, _)| &text[c]));
     out
 }
 

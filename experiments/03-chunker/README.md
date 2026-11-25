@@ -1,6 +1,6 @@
 # Experiment 3: `Plain` vs `Rfc` Chunker (`chunk_size` × `k` grid)
 
-Measured on the [shared RFC corpus](../README.md) (3 RFCs, 95,595 chars, 20 questions). Data: [chunker.csv](chunker.csv) · Chart: `gnuplot experiments/03-chunker/plot.gp` · Runner: `cargo test --test sweep sweep_chunker -- --ignored --nocapture` in [tests/sweep.rs](../../tests/sweep.rs)
+Measured on the [shared RFC corpus](../README.md) (3 RFCs, 95,595 chars, 20 questions); metrics are defined [there](../README.md#metrics). Data: [chunker.csv](chunker.csv) · Chart: `gnuplot experiments/03-chunker/plot.gp` · Runner: `cargo test --test sweep sweep_chunker -- --ignored --nocapture` in [tests/sweep.rs](../../tests/sweep.rs)
 
 `Rfc` packs paragraphs exactly like `Plain`, except that a section heading always starts a new chunk. Headings are found from layout alone, the way a reader spots them: a short standalone block that sticks out left of the body indent, doesn't end like a sentence, and isn't a page header/footer repeated across pages (no numbering patterns or title lists). On these three RFCs it finds exactly the 23 + 31 + 36 section titles (`rfc_headings_match_fixture_sections`). Page headers/footers stay inside chunks for both chunkers, so headings are the only difference.
 
