@@ -1,15 +1,19 @@
 //! Empirical sweeps of `chunk_size` and `k` over plaintext IETF RFCs in `tests/fixtures_plain`.
 //!
-//! Chunks come from `Plain`, a paragraph packer with no notion of headings or code,
-//! isolating chunk size and `k` from any structure-aware chunking.
+//! The `chunk_size` and `k` sweeps use `Plain`, a paragraph packer with no notion of headings
+//! or code, isolating chunk size and `k` from any structure-aware chunking. The chunker sweep
+//! then compares `Plain` against `Rfc`, which splits on the RFCs' section headings.
 //!
 //! - Offline self-checks: `cargo test --test sweep`
 //! - Chunk-size sweep:    `cargo test --test sweep sweep_chunk_size -- --ignored --nocapture`
 //! - Top-k sweep:         `cargo test --test sweep sweep_k -- --ignored --nocapture`
+//! - Plain vs Rfc sweep:  `cargo test --test sweep sweep_chunker -- --ignored --nocapture`
 
 use std::{collections::HashSet, fmt::Write as _, path::PathBuf, time::Instant};
 
-use rag_cli::{Chunker, Document, Hit, Markdown, OpenAiClient, Plain, Rag, chunk_documents, index};
+use rag_cli::{
+    Chunker, Document, Hit, Markdown, OpenAiClient, Plain, Rag, Rfc, chunk_documents, index,
+};
 use serde::Deserialize;
 
 const CASES_JSON: &str = include_str!("sweep_cases.json");
@@ -66,6 +70,70 @@ fn reciprocal_rank(hits: &[Hit], evidence: &[Evidence]) -> Option<f32> {
         worst_rank = worst_rank.max(rank + 1);
     }
     (worst_rank > 0).then(|| 1.0 / worst_rank as f32)
+}
+
+/// Retrieval quality of the top `k` hits per case.
+struct Score {
+    single_hits: usize,
+    single_total: usize,
+    cross_hits: usize,
+    cross_total: usize,
+    mrr: f32,
+    avg_prompt_chars: usize,
+}
+
+impl Score {
+    /// Scores the first `k` of each case's `retrieved` hits (ranked best first).
+    fn at_k(cases: &[Case], retrieved: &[Vec<Hit>], k: usize) -> Self {
+        let mut s = Score {
+            single_hits: 0,
+            single_total: 0,
+            cross_hits: 0,
+            cross_total: 0,
+            mrr: 0.0,
+            avg_prompt_chars: 0,
+        };
+        let (mut rr_sum, mut prompt_chars) = (0.0f32, 0usize);
+
+        for (c, hits) in cases.iter().zip(retrieved) {
+            let hits = &hits[..k.min(hits.len())];
+            prompt_chars += hits
+                .iter()
+                .map(|h| h.chunk.text.chars().count())
+                .sum::<usize>();
+
+            let rr = reciprocal_rank(hits, &c.evidence);
+            let (hit, total) = if c.cross_chunk {
+                (&mut s.cross_hits, &mut s.cross_total)
+            } else {
+                (&mut s.single_hits, &mut s.single_total)
+            };
+            *total += 1;
+            *hit += rr.is_some() as usize;
+            rr_sum += rr.unwrap_or(0.0);
+        }
+
+        s.mrr = rr_sum / cases.len() as f32;
+        s.avg_prompt_chars = prompt_chars / cases.len();
+        s
+    }
+
+    fn overall_hits(&self) -> usize {
+        self.single_hits + self.cross_hits
+    }
+
+    fn overall_total(&self) -> usize {
+        self.single_total + self.cross_total
+    }
+}
+
+/// Fraction as a percentage, or 0 when there is nothing to count.
+fn pct(hits: usize, total: usize) -> f32 {
+    if total == 0 {
+        0.0
+    } else {
+        100.0 * hits as f32 / total as f32
+    }
 }
 
 /// The earlier sweeps ran `Markdown` on these RFCs; `Plain` must reproduce those chunks.
@@ -271,52 +339,34 @@ async fn sweep_k() {
     );
 
     for &k in KS {
-        let (mut single_total, mut single_hits) = (0usize, 0usize);
-        let (mut cross_total, mut cross_hits) = (0usize, 0usize);
-        let (mut all_hits, mut rr_sum, mut prompt_chars) = (0usize, 0.0f32, 0usize);
-
-        for (c, full_hits) in cases.iter().zip(&retrieved) {
-            let slice = &full_hits[..k.min(full_hits.len())];
-            prompt_chars += slice
-                .iter()
-                .map(|h| h.chunk.text.chars().count())
-                .sum::<usize>();
-
-            let rr = reciprocal_rank(slice, &c.evidence);
-            if c.cross_chunk {
-                cross_total += 1;
-                cross_hits += rr.is_some() as usize;
-            } else {
-                single_total += 1;
-                single_hits += rr.is_some() as usize;
-            }
-            if let Some(r) = rr {
-                all_hits += 1;
-                rr_sum += r;
-            }
-        }
-
-        let single_recall = single_hits as f32 / single_total as f32;
-        let cross_recall = cross_hits as f32 / cross_total as f32;
-        let all_recall = all_hits as f32 / cases.len() as f32;
-        let mrr = rr_sum / cases.len() as f32;
-        let avg_prompt = prompt_chars / cases.len();
-
+        let s = Score::at_k(&cases, &retrieved, k);
         println!(
-            "| {k:>2} | {:>4}/{:<3} | {:>3}/{:<3} | {:>2}/{:<2} {:>3.0}% | {mrr:>5.3} | {avg_prompt:>16} |",
-            single_hits,
-            single_total,
-            cross_hits,
-            cross_total,
-            all_hits,
-            cases.len(),
-            100.0 * all_recall
+            "| {k:>2} | {:>4}/{:<3} | {:>3}/{:<3} | {:>2}/{:<2} {:>3.0}% | {:>5.3} | {:>16} |",
+            s.single_hits,
+            s.single_total,
+            s.cross_hits,
+            s.cross_total,
+            s.overall_hits(),
+            s.overall_total(),
+            pct(s.overall_hits(), s.overall_total()),
+            s.mrr,
+            s.avg_prompt_chars
         );
         writeln!(
             csv,
-            "{chunk_size},{k},{},{single_hits},{single_total},{single_recall:.4},{cross_hits},{cross_total},{cross_recall:.4},{all_hits},{},{all_recall:.4},{mrr:.4},{avg_prompt}",
+            "{chunk_size},{k},{},{},{},{:.4},{},{},{:.4},{},{},{:.4},{:.4},{}",
             rag.chunk_count(),
-            cases.len()
+            s.single_hits,
+            s.single_total,
+            pct(s.single_hits, s.single_total) / 100.0,
+            s.cross_hits,
+            s.cross_total,
+            pct(s.cross_hits, s.cross_total) / 100.0,
+            s.overall_hits(),
+            s.overall_total(),
+            pct(s.overall_hits(), s.overall_total()) / 100.0,
+            s.mrr,
+            s.avg_prompt_chars
         )
         .unwrap();
     }
@@ -324,4 +374,128 @@ async fn sweep_k() {
     std::fs::create_dir_all("experiments/02-top-k").unwrap();
     std::fs::write("experiments/02-top-k/top_k.csv", csv).unwrap();
     println!("\nSaved experiments/02-top-k/top_k.csv");
+}
+
+/// Every evidence snippet must sit inside one `Rfc` chunk at the default size too, so a
+/// miss in the chunker sweep is a retrieval miss, not a snippet split by the chunker.
+#[test]
+fn sweep_cases_fit_rfc_chunks() {
+    let chunker = Rfc {
+        max_chars: DEFAULT_SWEEP_K_CHUNK_SIZE,
+    };
+    let mut chunk_index: Vec<(PathBuf, String)> = Vec::new();
+    for path in plaintext_files() {
+        let text = std::fs::read_to_string(&path).unwrap();
+        for c in chunker.chunk(&text) {
+            chunk_index.push((path.clone(), c.to_lowercase()));
+        }
+    }
+    for c in load_cases() {
+        for ev in &c.evidence {
+            let needle = ev.snippet.to_lowercase();
+            assert!(
+                chunk_index
+                    .iter()
+                    .any(|(p, text)| p.ends_with(&ev.source) && text.contains(&needle)),
+                "case {}: snippet {:?} not inside one Rfc chunk at chunk_size={DEFAULT_SWEEP_K_CHUNK_SIZE}",
+                c.id,
+                ev.snippet
+            );
+        }
+    }
+}
+
+/// Embeds `docs` split by `chunker` and retrieves the top `max_k` hits for every case.
+async fn retrieve_all(
+    docs: &[Document],
+    chunker: &impl Chunker,
+    cases: &[Case],
+    max_k: usize,
+) -> (usize, usize, Vec<Vec<Hit>>) {
+    let chunks = chunk_documents(docs, chunker);
+    let avg_chunk_chars =
+        chunks.iter().map(|c| c.text.chars().count()).sum::<usize>() / chunks.len();
+    let client = OpenAiClient::from_env().unwrap();
+    let rag: Rag = Rag::ingest(client.clone(), client, chunks).await.unwrap();
+
+    let mut retrieved = Vec::with_capacity(cases.len());
+    for c in cases {
+        retrieved.push(rag.retrieve(&c.q, max_k).await.unwrap());
+    }
+    (rag.chunk_count(), avg_chunk_chars, retrieved)
+}
+
+/// `Plain` vs `Rfc` over every `chunk_size` and `k`: each (chunker, chunk_size) is embedded
+/// once and retrieved at the largest `k`, then every smaller `k` is scored in memory.
+#[tokio::test]
+#[ignore]
+async fn sweep_chunker() {
+    const SHOWN_K: &[usize] = &[3, 5];
+    let max_k = *KS.last().unwrap();
+    let files = plaintext_files();
+    let cases = load_cases();
+    let docs = Document::from_files(&files).await.unwrap();
+
+    println!(
+        "Plaintext corpus: {} files, {} cases, chunk_size x k grid per chunker\n",
+        files.len(),
+        cases.len()
+    );
+    println!(
+        "| chunker | chunk_size | chunks | avg chunk |  k | single@k | cross@k | overall@k |   MRR | avg prompt chars |"
+    );
+    println!(
+        "|---------|-----------:|-------:|----------:|---:|---------:|--------:|----------:|------:|-----------------:|"
+    );
+
+    let mut csv = String::from(
+        "chunker,chunk_size,k,chunks,avg_chunk_chars,single_hits,single_total,single_recall,cross_hits,cross_total,cross_recall,overall_hits,overall_total,overall_recall,mrr,avg_prompt_chars\n",
+    );
+
+    for name in ["plain", "rfc"] {
+        for &size in CHUNK_SIZES {
+            let (chunks, avg_chunk, retrieved) = match name {
+                "plain" => retrieve_all(&docs, &Plain { max_chars: size }, &cases, max_k).await,
+                _ => retrieve_all(&docs, &Rfc { max_chars: size }, &cases, max_k).await,
+            };
+
+            for &k in KS {
+                let s = Score::at_k(&cases, &retrieved, k);
+                if SHOWN_K.contains(&k) {
+                    println!(
+                        "| {name:<7} | {size:>10} | {chunks:>6} | {avg_chunk:>9} | {k:>2} | {:>4}/{:<3} | {:>3}/{:<3} | {:>2}/{:<2} {:>3.0}% | {:>5.3} | {:>16} |",
+                        s.single_hits,
+                        s.single_total,
+                        s.cross_hits,
+                        s.cross_total,
+                        s.overall_hits(),
+                        s.overall_total(),
+                        pct(s.overall_hits(), s.overall_total()),
+                        s.mrr,
+                        s.avg_prompt_chars
+                    );
+                }
+                writeln!(
+                    csv,
+                    "{name},{size},{k},{chunks},{avg_chunk},{},{},{:.4},{},{},{:.4},{},{},{:.4},{:.4},{}",
+                    s.single_hits,
+                    s.single_total,
+                    pct(s.single_hits, s.single_total) / 100.0,
+                    s.cross_hits,
+                    s.cross_total,
+                    pct(s.cross_hits, s.cross_total) / 100.0,
+                    s.overall_hits(),
+                    s.overall_total(),
+                    pct(s.overall_hits(), s.overall_total()) / 100.0,
+                    s.mrr,
+                    s.avg_prompt_chars
+                )
+                .unwrap();
+            }
+        }
+    }
+
+    std::fs::create_dir_all("experiments/03-chunker").unwrap();
+    std::fs::write("experiments/03-chunker/chunker.csv", csv).unwrap();
+    println!("\nSaved experiments/03-chunker/chunker.csv");
 }
