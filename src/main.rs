@@ -14,10 +14,10 @@ struct Args {
     question: String,
 
     /// How many chunks go into the prompt
-    #[arg(short, long, default_value_t = 3)]
+    #[arg(short, long, default_value_t = Rag::DEFAULT_K)]
     k: usize,
 
-    /// Maximum chunk size, in chars [default: 1500]
+    /// Maximum chunk size, in chars [default: 1100]
     #[arg(short, long)]
     chunk_size: Option<NonZeroUsize>,
 }

@@ -16,8 +16,8 @@ cargo run --release -- --question "What is backpressure?" notes/*.md
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `-q, --question` | required | The question to answer |
-| `-k, --k` | 3 | How many chunks go into the prompt |
-| `-c, --chunk-size` | 1500 | Maximum chunk size, in chars |
+| `-k, --k` | 5 | How many chunks go into the prompt |
+| `-c, --chunk-size` | 1100 | Maximum chunk size, in chars |
 
 If the answer isn't in the notes, the model is told to say "I don't know".
 
@@ -48,7 +48,7 @@ let answer = rag.ask("What is backpressure?", 3).await?;
 println!("{}\nfrom: {:?} ({} hits)", answer.text, answer.sources(), hits.len());
 ```
 
-Use `Rag::ingest_with` to pick a chunk size other than `Rag::DEFAULT_MAX_CHUNK_CHARS` (1500).
+Use `Rag::ingest_with` to pick a chunk size other than `Rag::DEFAULT_MAX_CHUNK_CHARS` (1100).
 
 ## Tests
 

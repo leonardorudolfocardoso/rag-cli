@@ -46,7 +46,10 @@ pub struct Rag<M: Model = TextEmbedding3Small, E: Embedder = OpenAiClient, C: Ch
 
 impl Rag {
     /// Default ceiling on chunk length used by [`Rag::ingest`], in chars.
-    pub const DEFAULT_MAX_CHUNK_CHARS: usize = 1500;
+    pub const DEFAULT_MAX_CHUNK_CHARS: usize = 1100;
+
+    /// Default number of chunks put into the prompt by the CLI.
+    pub const DEFAULT_K: usize = 5;
 }
 
 impl<M: Model + 'static> Rag<M, OpenAiClient, OpenAiClient> {
