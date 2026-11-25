@@ -18,7 +18,7 @@ cargo run --release -- --question "What is backpressure?" notes/*.md
 | `-q, --question` | required | The question to answer |
 | `-k, --k` | 5 | How many chunks go into the prompt |
 | `-c, --chunk-size` | 1100 | Maximum chunk size, in chars |
-| `--chunker` | plain | `plain` (paragraphs only) or `markdown` (headings, fenced code) |
+| `--chunker` | plain | `plain` (paragraphs only), `markdown` (headings, fenced code) or `rfc` (IETF RFC sections) |
 
 If the answer isn't in the notes, the model is told to say "I don't know".
 
@@ -52,7 +52,7 @@ let answer = rag.ask("What is backpressure?", 3).await?;
 println!("{}\nfrom: {:?} ({} hits)", answer.text, answer.sources(), hits.len());
 ```
 
-`index` runs the whole pipeline. Its steps are also public: `Document::from_files` reads files, `chunk_documents` splits them with any `Chunker` (`Markdown`, `Plain`), and `Rag::ingest` embeds the chunks; `Rag::DEFAULT_MAX_CHUNK_CHARS` (1100) is the CLI default chunk size.
+`index` runs the whole pipeline. Its steps are also public: `Document::from_files` reads files, `chunk_documents` splits them with any `Chunker` (`Markdown`, `Plain`, `Rfc`), and `Rag::ingest` embeds the chunks; `Rag::DEFAULT_MAX_CHUNK_CHARS` (1100) is the CLI default chunk size.
 
 ## Tests
 

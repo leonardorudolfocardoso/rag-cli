@@ -2,9 +2,11 @@ use std::{ops::Range, path::Path, sync::Arc};
 
 mod markdown;
 mod plain;
+mod rfc;
 
 pub use markdown::Markdown;
 pub use plain::Plain;
+pub use rfc::Rfc;
 
 /// A piece of a source file, kept with where it came from so answers can cite it.
 #[derive(Debug, Clone)]

@@ -1,5 +1,5 @@
 use clap::{Parser, ValueEnum};
-use rag_cli::{Markdown, OpenAiClient, Plain, Rag, index};
+use rag_cli::{Markdown, OpenAiClient, Plain, Rag, Rfc, index};
 use std::{num::NonZeroUsize, path::PathBuf, process::ExitCode};
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -8,6 +8,8 @@ enum ChunkerKind {
     Markdown,
     /// Packs paragraphs, no structure
     Plain,
+    /// Splits IETF RFC plaintext on its numbered sections
+    Rfc,
 }
 
 /// Answer questions about Markdown notes.
@@ -49,6 +51,7 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             index(client.clone(), client, &files, &Markdown { max_chars }).await?
         }
         ChunkerKind::Plain => index(client.clone(), client, &files, &Plain { max_chars }).await?,
+        ChunkerKind::Rfc => index(client.clone(), client, &files, &Rfc { max_chars }).await?,
     };
 
     println!("{}", rag.ask(&question, k).await?.text);
